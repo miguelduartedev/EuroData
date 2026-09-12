@@ -1,10 +1,27 @@
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
 export function RegionComparison() {
   return (
-    <section className="min-h-[220px] rounded-lg border border-t-4 border-[#dbe3ed] border-t-[#00a394] bg-white p-6" aria-labelledby="comparison-heading">
-      <p className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-[#455a75]">Comparison area</p>
-      <h2 id="comparison-heading" className="m-0 text-[clamp(1.45rem,2.4vw,2rem)] tracking-[-0.035em]">Select two regions to compare.</h2>
-      <p className="mt-2.5 leading-6 text-slate-500">Metric comparison will appear here.</p>
-      {/* TODO: Render selected regions, requested data, metrics, and derived comparisons. */}
-    </section>
-  );
+    <Card className="gap-0  shadow-none" aria-labelledby="comparison-heading">
+      <CardHeader className="p-6">
+        <CardTitle
+          id="comparison-heading"
+          role="heading"
+          aria-level={2}
+          className="text-[clamp(1.45rem,2.4vw,2rem)] tracking-[-0.035em]"
+        >
+          Key metrics
+        </CardTitle>
+        <CardDescription className="mt-2.5 leading-6">
+          Key metrics comparison will appear here.
+        </CardDescription>
+      </CardHeader>
+      {/* TODO: Render Eurostat metrics and derived comparisons. */}
+    </Card>
+  )
 }

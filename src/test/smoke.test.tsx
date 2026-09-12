@@ -5,5 +5,5 @@ import { RegionComparison } from "../components/RegionComparison/RegionCompariso
 it("renders the starter test environment", () => {
   render(<RegionComparison />);
 
-  expect(screen.getByText("Select two regions to compare.")).toBeInTheDocument();
+  expect(screen.getByText("Key metrics")).toBeInTheDocument();
 });

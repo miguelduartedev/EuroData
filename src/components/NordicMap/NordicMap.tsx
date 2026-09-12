@@ -3,6 +3,7 @@ import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import type { Feature, FeatureCollection, GeoJsonProperties, MultiPolygon, Polygon, Position } from "geojson";
 import type { Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
+import { REGION_A_COLOR, REGION_B_COLOR } from "@/lib/region-colors";
 
 const SOURCE_ID = "nuts-regions";
 const FILL_LAYER_ID = "nuts-regions-fill";
@@ -27,7 +28,8 @@ const mapStyle: StyleSpecification = {
 };
 
 export interface NordicMapProps {
-  selectedRegionIds?: string[];
+  regionAId?: string;
+  regionBId?: string;
   onRegionClick?: (regionId: string) => void;
 }
 
@@ -72,20 +74,26 @@ function isNordicNutsFeatureCollection(value: unknown): value is FeatureCollecti
   );
 }
 
-function fillColorExpression(selectedRegionIds: string[]): maplibregl.ExpressionSpecification {
+function fillColorExpression(regionAId: string | undefined, regionBId: string | undefined): maplibregl.ExpressionSpecification {
   return [
     "case",
-    ["in", ["get", NUTS_ID_PROPERTY], ["literal", selectedRegionIds]],
-    "#2563eb",
+    ["==", ["get", NUTS_ID_PROPERTY], regionAId ?? ""],
+    REGION_A_COLOR,
+    ["==", ["get", NUTS_ID_PROPERTY], regionBId ?? ""],
+    REGION_B_COLOR,
     "#f8fafc",
   ];
 }
 
-function fillOpacityExpression(selectedRegionIds: string[]): maplibregl.ExpressionSpecification {
+function fillOpacityExpression(regionAId: string | undefined, regionBId: string | undefined): maplibregl.ExpressionSpecification {
   return [
     "case",
-    ["in", ["get", NUTS_ID_PROPERTY], ["literal", selectedRegionIds]],
-    0.55,
+    [
+      "any",
+      ["==", ["get", NUTS_ID_PROPERTY], regionAId ?? ""],
+      ["==", ["get", NUTS_ID_PROPERTY], regionBId ?? ""],
+    ],
+    0.68,
     0.9,
   ];
 }
@@ -107,7 +115,12 @@ function fitPrimaryNordicBounds(map: MapLibreMap, data: FeatureCollection<Nordic
   }
 }
 
-function addRegionLayers(map: MapLibreMap, data: FeatureCollection<NordicNutsGeometry, GeoJsonProperties>, selectedRegionIds: string[]): void {
+function addRegionLayers(
+  map: MapLibreMap,
+  data: FeatureCollection<NordicNutsGeometry, GeoJsonProperties>,
+  regionAId: string | undefined,
+  regionBId: string | undefined,
+): void {
   if (!map.getSource(SOURCE_ID)) {
     map.addSource(SOURCE_ID, { type: "geojson", data, promoteId: NUTS_ID_PROPERTY });
   }
@@ -118,8 +131,8 @@ function addRegionLayers(map: MapLibreMap, data: FeatureCollection<NordicNutsGeo
       type: "fill",
       source: SOURCE_ID,
       paint: {
-        "fill-color": fillColorExpression(selectedRegionIds),
-        "fill-opacity": fillOpacityExpression(selectedRegionIds),
+        "fill-color": fillColorExpression(regionAId, regionBId),
+        "fill-opacity": fillOpacityExpression(regionAId, regionBId),
       },
     });
   }
@@ -144,13 +157,15 @@ function waitForStyle(map: MapLibreMap): Promise<void> {
   });
 }
 
-export function NordicMap({ selectedRegionIds = [], onRegionClick }: NordicMapProps) {
+export function NordicMap({ regionAId, regionBId, onRegionClick }: NordicMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const selectedRegionIdsRef = useRef(selectedRegionIds);
+  const regionAIdRef = useRef(regionAId);
+  const regionBIdRef = useRef(regionBId);
   const onRegionClickRef = useRef(onRegionClick);
 
-  selectedRegionIdsRef.current = selectedRegionIds;
+  regionAIdRef.current = regionAId;
+  regionBIdRef.current = regionBId;
   onRegionClickRef.current = onRegionClick;
 
   useEffect(() => {
@@ -190,7 +205,7 @@ export function NordicMap({ selectedRegionIds = [], onRegionClick }: NordicMapPr
             return;
           }
 
-          addRegionLayers(map, data, selectedRegionIdsRef.current);
+          addRegionLayers(map, data, regionAIdRef.current, regionBIdRef.current);
           fitPrimaryNordicBounds(map, data);
         } catch (error) {
           if (!requestController.signal.aborted) {
@@ -202,10 +217,22 @@ export function NordicMap({ selectedRegionIds = [], onRegionClick }: NordicMapPr
 
     initialiseGeometry();
 
-    map.on("click", FILL_LAYER_ID, (event: MapLayerMouseEvent) => {
+    const reportClickedRegion = (event: MapLayerMouseEvent) => {
       const regionId = event.features?.[0]?.properties?.[NUTS_ID_PROPERTY];
       if (typeof regionId === "string") {
         onRegionClickRef.current?.(regionId);
+      }
+    };
+
+    map.on("click", FILL_LAYER_ID, reportClickedRegion);
+    map.on("contextmenu", FILL_LAYER_ID, (event: MapLayerMouseEvent) => {
+      const regionId = event.features?.[0]?.properties?.[NUTS_ID_PROPERTY];
+      const isSelectedRegion =
+        regionId === regionAIdRef.current || regionId === regionBIdRef.current;
+
+      if (typeof regionId === "string" && isSelectedRegion) {
+        event.originalEvent.preventDefault();
+        reportClickedRegion(event);
       }
     });
     map.on("mouseenter", FILL_LAYER_ID, () => {
@@ -225,10 +252,10 @@ export function NordicMap({ selectedRegionIds = [], onRegionClick }: NordicMapPr
   useEffect(() => {
     const map = mapRef.current;
     if (map?.getLayer(FILL_LAYER_ID)) {
-      map.setPaintProperty(FILL_LAYER_ID, "fill-color", fillColorExpression(selectedRegionIds));
-      map.setPaintProperty(FILL_LAYER_ID, "fill-opacity", fillOpacityExpression(selectedRegionIds));
+      map.setPaintProperty(FILL_LAYER_ID, "fill-color", fillColorExpression(regionAId, regionBId));
+      map.setPaintProperty(FILL_LAYER_ID, "fill-opacity", fillOpacityExpression(regionAId, regionBId));
     }
-  }, [selectedRegionIds]);
+  }, [regionAId, regionBId]);
 
-  return <div ref={containerRef} className="min-h-[480px] w-full max-[760px]:min-h-[360px]" aria-label="Interactive map of Nordic NUTS 2 regions" />;
+  return <div ref={containerRef} className="h-[360px] w-full sm:h-[420px] md:h-[480px] lg:h-auto lg:min-h-0 lg:flex-1" aria-label="Interactive map of Nordic NUTS 2 regions" />;
 }

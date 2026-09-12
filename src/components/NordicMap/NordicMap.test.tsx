@@ -1,5 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import { REGION_A_COLOR, REGION_B_COLOR } from "../../lib/region-colors";
 import { NordicMap } from "./NordicMap";
 
 const mapMock = vi.hoisted(() => {
@@ -70,9 +71,9 @@ beforeEach(() => {
   );
 });
 
-it("loads Nordic NUTS geometry into fill and outline layers", async () => {
+it("loads Nordic NUTS geometry into slot-coloured fill and outline layers", async () => {
   const onRegionClick = vi.fn();
-  render(<NordicMap selectedRegionIds={["FI1B"]} onRegionClick={onRegionClick} />);
+  render(<NordicMap regionAId="FI1B" regionBId="SE11" onRegionClick={onRegionClick} />);
 
   await waitFor(() => {
     expect(mapMock.instance.addSource).toHaveBeenCalledWith(
@@ -83,7 +84,21 @@ it("loads Nordic NUTS geometry into fill and outline layers", async () => {
 
   expect(mapMock.instance.addLayer).toHaveBeenNthCalledWith(
     1,
-    expect.objectContaining({ id: "nuts-regions-fill", source: "nuts-regions", type: "fill" }),
+    expect.objectContaining({
+      id: "nuts-regions-fill",
+      source: "nuts-regions",
+      type: "fill",
+      paint: expect.objectContaining({
+        "fill-color": [
+          "case",
+          ["==", ["get", "NUTS_ID"], "FI1B"],
+          REGION_A_COLOR,
+          ["==", ["get", "NUTS_ID"], "SE11"],
+          REGION_B_COLOR,
+          "#f8fafc",
+        ],
+      }),
+    }),
   );
   expect(mapMock.instance.addLayer).toHaveBeenNthCalledWith(
     2,
@@ -98,4 +113,46 @@ it("loads Nordic NUTS geometry into fill and outline layers", async () => {
   });
 
   expect(onRegionClick).toHaveBeenCalledWith("FI1B");
+
+  const contextMenuHandler = mapMock.instance.on.mock.calls.find(([eventName]) => eventName === "contextmenu")?.[2];
+  const preventDefault = vi.fn();
+  expect(contextMenuHandler).toBeTypeOf("function");
+  (contextMenuHandler as (event: {
+    features: Array<{ properties: { NUTS_ID: string } }>;
+    originalEvent: { preventDefault: () => void };
+  }) => void)({
+    features: [{ properties: { NUTS_ID: "FI1B" } }],
+    originalEvent: { preventDefault },
+  });
+
+  expect(preventDefault).toHaveBeenCalledTimes(1);
+  expect(onRegionClick).toHaveBeenLastCalledWith("FI1B");
+});
+
+it("updates the fill styling when the selected slots change", async () => {
+  mapMock.instance.getLayer.mockReturnValue({});
+  const { rerender } = render(<NordicMap regionAId="FI1B" regionBId="SE11" />);
+
+  await waitFor(() => {
+    expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith(
+      "nuts-regions-fill",
+      "fill-color",
+      expect.any(Array),
+    );
+  });
+
+  rerender(<NordicMap regionAId="NO02" regionBId="FI19" />);
+
+  expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith(
+    "nuts-regions-fill",
+    "fill-color",
+    [
+      "case",
+      ["==", ["get", "NUTS_ID"], "NO02"],
+      REGION_A_COLOR,
+      ["==", ["get", "NUTS_ID"], "FI19"],
+      REGION_B_COLOR,
+      "#f8fafc",
+    ],
+  );
 });

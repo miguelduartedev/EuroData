@@ -55,6 +55,20 @@ body {
   box-shadow: none;
 }
 
+.dark .maplibregl-ctrl-group {
+  border-color: #475569;
+  background: #1e293b;
+}
+
+.dark .maplibregl-ctrl-group button {
+  background-color: #1e293b;
+  border-color: #475569;
+}
+
+.dark .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
@@ -143,3 +157,20 @@ body {
     @apply font-sans;
   }
 }
+
+/* GDP hover content uses the same theme tokens as the map legend. */
+.metric-popup { pointer-events: none; }
+.metric-popup .maplibregl-popup-content {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  font: 12px/1.5 "Geist Variable", sans-serif;
+}
+.metric-popup .maplibregl-popup-tip { border-top-color: var(--popover); }
+.metric-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.metric-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.metric-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-top-color: transparent; border-bottom-color: var(--popover); }
+.metric-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-top-color: transparent; border-right-color: var(--popover); }
+.metric-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-top-color: transparent; border-left-color: var(--popover); }

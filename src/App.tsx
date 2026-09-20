@@ -1,4 +1,9 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { useNuts2MetricSnapshot } from "./api/eurostat/queries"
+import { EUROSTAT_SNAPSHOT_YEAR } from "./api/eurostat/metrics"
+import { metrics } from "./data/metrics"
+import { gdpChoroplethScale } from "./data/map-metric"
+import { buildMetricLookup } from "./lib/choropleth"
 import { MetricTrend } from "./components/MetricTrend/MetricTrend"
 import { NordicMap } from "./components/NordicMap/NordicMap"
 import { RegionComparison } from "./components/RegionComparison/RegionComparison"
@@ -23,6 +28,12 @@ const initialRegionSelections: RegionSelections = {
 }
 
 export function App() {
+  const snapshot = useNuts2MetricSnapshot("gdp_per_capita", EUROSTAT_SNAPSHOT_YEAR)
+  const metricValues = useMemo(
+    () => buildMetricLookup(snapshot.data ?? [], "gdp_per_capita", EUROSTAT_SNAPSHOT_YEAR),
+    [snapshot.data],
+  )
+  const gdpMetric = metrics.find((metric) => metric.id === "gdp_per_capita")!
   const [regionSelections, setRegionSelections] = useState<RegionSelections>(
     initialRegionSelections,
   )
@@ -66,10 +77,10 @@ export function App() {
               <img src="/favicon.svg" alt="" className="size-14 shrink-0" />
               <div className="min-w-0">
                 <h1 className="m-0 text-[clamp(1.45rem,2.4vw,1.25rem)] tracking-[-0.035em]">
-                  Nordic Life Data Explorer
+                  EuroData
                 </h1>
                 <p className="mt-[5px] text-slate-500 dark:text-slate-400">
-                  Compare Nordic regions using Eurostat regional data.
+                  Compare European regions using Eurostat regional data.
                 </p>
               </div>
             </div>
@@ -80,7 +91,7 @@ export function App() {
         <div className="grid grid-cols-1 lg:min-h-0 lg:items-start lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:grid-cols-2">
           <section
             className="min-w-0 overflow-hidden border-b border-border lg:flex lg:h-full lg:flex-col lg:border-r lg:border-b-0"
-            aria-label="Nordic region map"
+            aria-label="European NUTS 2 region map"
           >
             <div className="flex shrink-0 items-end gap-5 border-b border-border bg-card px-[clamp(20px,3vw,36px)] py-[18px] max-xl:flex-col max-xl:items-stretch max-xl:[&>section]:max-w-none xl:[&>section]:min-w-0 xl:[&>section]:flex-1">
               <RegionSelector
@@ -119,6 +130,15 @@ export function App() {
               />
             </div>
             <NordicMap
+              metric={{
+                values: metricValues,
+                label: gdpMetric.label,
+                unit: gdpMetric.unit,
+                year: EUROSTAT_SNAPSHOT_YEAR,
+                scale: gdpChoroplethScale,
+                isLoading: snapshot.isPending,
+                isError: snapshot.isError,
+              }}
               regionAId={regionSelections.regionAId}
               regionBId={regionSelections.regionBId}
               onRegionClick={handleMapRegionClick}

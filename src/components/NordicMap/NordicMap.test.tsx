@@ -1,60 +1,90 @@
-import { render, waitFor } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import type { FeatureCollection } from "geojson";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { gdpChoroplethScale } from "../../data/map-metric";
+import { choroplethExpression, NO_DATA_COLORS, type MapMetric } from "../../lib/choropleth";
 import { REGION_A_COLOR, REGION_B_COLOR } from "../../lib/region-colors";
 import { NordicMap } from "./NordicMap";
 
 const mapMock = vi.hoisted(() => {
-  class LngLatBounds {
-    private empty = true;
-
-    extend() {
-      this.empty = false;
-      return this;
-    }
-
-    isEmpty() {
-      return this.empty;
-    }
-  }
-
-  const instance = {
-    addControl: vi.fn(),
-    addLayer: vi.fn(),
-    addSource: vi.fn(),
-    fitBounds: vi.fn(),
-    getCanvas: vi.fn(() => ({ style: {} })),
-    getLayer: vi.fn(),
-    getSource: vi.fn(),
-    isStyleLoaded: vi.fn(() => true),
-    on: vi.fn(),
-    once: vi.fn(),
-    remove: vi.fn(),
-    setPaintProperty: vi.fn(),
+  const sources = new Map<string, { data: FeatureCollection; setData: ReturnType<typeof vi.fn> }>();
+  const layers = new Map<string, unknown>();
+  const popup = {
+    setDOMContent: vi.fn(), setLngLat: vi.fn(), addTo: vi.fn(), remove: vi.fn(),
   };
-
-  return { instance, LngLatBounds };
+  const instance = {
+    addControl: vi.fn(), addLayer: vi.fn(), addSource: vi.fn(), fitBounds: vi.fn(),
+    getCanvas: vi.fn(() => ({ style: {} })), getLayer: vi.fn(), getSource: vi.fn(),
+    isStyleLoaded: vi.fn(() => true), on: vi.fn(), once: vi.fn(), remove: vi.fn(),
+    setPaintProperty: vi.fn(), setFilter: vi.fn(),
+  };
+  return { instance, popup, sources, layers };
 });
 
 vi.mock("maplibre-gl", () => ({
-  LngLatBounds: mapMock.LngLatBounds,
   Map: class {
-    constructor() {
+    constructor(options: { style: { layers: Array<{ id: string }> } }) {
+      options.style.layers.forEach((layer) => mapMock.layers.set(layer.id, layer));
       return mapMock.instance;
     }
   },
-  NavigationControl: class {},
-  setWorkerUrl: vi.fn(),
+  Popup: class { constructor() { return mapMock.popup; } },
+  NavigationControl: class {}, setWorkerUrl: vi.fn(),
 }));
 
-const nordicFeatureCollection = {
+const metric: MapMetric = {
+  label: "GDP per capita", unit: "PPS per inhabitant", year: 2023,
+  values: new Map([["FI1B", 50400], ["PT20", 27200]]), scale: gdpChoroplethScale,
+  isLoading: false, isError: false,
+};
+const loadingMetric: MapMetric = { ...metric, values: new Map(), isLoading: true };
+
+function emit(eventName: string, regionId = "FI1B", properties = {}) {
+  const handler = mapMock.instance.on.mock.calls.find(([event]) => event === eventName)?.[2];
+  expect(handler).toBeTypeOf("function");
+  const event = {
+    features: [{ properties: { NUTS_ID: regionId, ...properties } }],
+    lngLat: { lng: 24.9, lat: 60.2 }, originalEvent: { preventDefault: vi.fn() },
+  };
+  act(() => handler(event));
+  return event;
+}
+
+function sourceValues() {
+  return mapMock.sources.get("nuts-regions")?.data.features.map((feature) => feature.properties?.metricValue);
+}
+
+const europeFeatureCollection = {
   type: "FeatureCollection",
   features: [
     {
       type: "Feature",
-      properties: { NUTS_ID: "FI1B", CNTR_CODE: "FI" },
+      properties: { NUTS_ID: "FI1B", CNTR_CODE: "FI", LEVL_CODE: 2 },
       geometry: {
         type: "Polygon",
         coordinates: [[[22.7, 59.8], [26.5, 59.8], [26.5, 60.8], [22.7, 59.8]]],
+      },
+    },
+    {
+      type: "Feature",
+      properties: { NUTS_ID: "PT20", CNTR_CODE: "PT", LEVL_CODE: 2 },
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [[[[ -31.4, 37.5], [-25, 37.5], [-25, 40.2], [-31.4, 37.5]]]],
+      },
+    },
+  ],
+};
+
+const ukContextFeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: { CNTR_ID: "UK", CNTR_NAME: "United Kingdom" },
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [[[[ -8.6, 49.8], [1.8, 49.8], [1.8, 59], [-8.6, 49.8]]]],
       },
     },
   ],
@@ -62,97 +92,131 @@ const nordicFeatureCollection = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => nordicFeatureCollection,
-    }),
-  );
+  mapMock.sources.clear();
+  mapMock.layers.clear();
+  document.documentElement.classList.remove("dark");
+  mapMock.instance.getSource.mockImplementation((id: string) => mapMock.sources.get(id));
+  mapMock.instance.getLayer.mockImplementation((id: string) => mapMock.layers.get(id));
+  mapMock.instance.addLayer.mockImplementation((layer) => mapMock.layers.set(layer.id, layer));
+  mapMock.instance.addSource.mockImplementation((id, options) => {
+    const source = { data: options.data, setData: vi.fn() };
+    source.setData.mockImplementation(async (data) => { source.data = data; });
+    mapMock.sources.set(id, source);
+  });
+  for (const fn of Object.values(mapMock.popup)) fn.mockReturnValue(mapMock.popup);
+  vi.stubGlobal("fetch", vi.fn((url: unknown) => Promise.resolve({
+    ok: true,
+    json: async () => String(url).includes("uk-country") ? ukContextFeatureCollection : europeFeatureCollection,
+  })));
 });
 
-it("loads Nordic NUTS geometry into slot-coloured fill and outline layers", async () => {
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  document.documentElement.classList.remove("dark");
+});
+
+it("loads joined geometry and a shared legend while keeping UK context neutral", async () => {
+  render(<NordicMap metric={metric} />);
+  await waitFor(() => expect(sourceValues()).toEqual([50400, 27200]));
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(mapMock.sources.get("uk-context")?.data).toBe(ukContextFeatureCollection);
+  expect(mapMock.layers.get("uk-context-fill")).toMatchObject({ paint: { "fill-color": "#e2e8f0" } });
+  expect(mapMock.layers.get("nuts-regions-fill")).toMatchObject({ paint: {
+    "fill-color": choroplethExpression(metric.scale, NO_DATA_COLORS.light), "fill-opacity": 1,
+  } });
+  expect(screen.getByRole("region", { name: "Map legend" })).toHaveTextContent("GDP per capita · 2023");
+  expect(screen.getByText("PPS per inhabitant")).toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")).toHaveLength(7);
+  expect(screen.getByText("No data")).toBeInTheDocument();
+  expect(mapMock.instance.on.mock.calls.some(([, layerId]) => layerId === "uk-context-fill")).toBe(false);
+  expect(mapMock.instance.fitBounds).toHaveBeenCalledWith([[-12, 34], [36, 72]], expect.objectContaining({ duration: 0 }));
+  expect(europeFeatureCollection.features[0].properties).not.toHaveProperty("metricValue");
+});
+
+it("allows clicks while loading, then updates source data without recreating or refitting the map", async () => {
   const onRegionClick = vi.fn();
-  render(<NordicMap regionAId="FI1B" regionBId="SE11" onRegionClick={onRegionClick} />);
-
-  await waitFor(() => {
-    expect(mapMock.instance.addSource).toHaveBeenCalledWith(
-      "nuts-regions",
-      expect.objectContaining({ data: nordicFeatureCollection, promoteId: "NUTS_ID", type: "geojson" }),
-    );
-  });
-
-  expect(mapMock.instance.addLayer).toHaveBeenNthCalledWith(
-    1,
-    expect.objectContaining({
-      id: "nuts-regions-fill",
-      source: "nuts-regions",
-      type: "fill",
-      paint: expect.objectContaining({
-        "fill-color": [
-          "case",
-          ["==", ["get", "NUTS_ID"], "FI1B"],
-          REGION_A_COLOR,
-          ["==", ["get", "NUTS_ID"], "SE11"],
-          REGION_B_COLOR,
-          "#f8fafc",
-        ],
-      }),
-    }),
-  );
-  expect(mapMock.instance.addLayer).toHaveBeenNthCalledWith(
-    2,
-    expect.objectContaining({ id: "nuts-regions-outline", source: "nuts-regions", type: "line" }),
-  );
+  const { rerender } = render(<NordicMap metric={loadingMetric} onRegionClick={onRegionClick} />);
+  await waitFor(() => expect(sourceValues()).toEqual([null, null]));
+  expect(screen.getByRole("status")).toHaveTextContent("Loading data");
+  emit("click", "PT20");
+  expect(onRegionClick).toHaveBeenCalledWith("PT20");
+  rerender(<NordicMap metric={metric} onRegionClick={onRegionClick} />);
+  await waitFor(() => expect(sourceValues()).toEqual([50400, 27200]));
+  expect(mapMock.sources.get("nuts-regions")?.setData).toHaveBeenCalledTimes(1);
+  expect(mapMock.instance.addSource).toHaveBeenCalledTimes(2);
   expect(mapMock.instance.fitBounds).toHaveBeenCalledTimes(1);
-
-  const clickHandler = mapMock.instance.on.mock.calls.find(([eventName]) => eventName === "click")?.[2];
-  expect(clickHandler).toBeTypeOf("function");
-  (clickHandler as (event: { features: Array<{ properties: { NUTS_ID: string } }> }) => void)({
-    features: [{ properties: { NUTS_ID: "FI1B" } }],
-  });
-
-  expect(onRegionClick).toHaveBeenCalledWith("FI1B");
-
-  const contextMenuHandler = mapMock.instance.on.mock.calls.find(([eventName]) => eventName === "contextmenu")?.[2];
-  const preventDefault = vi.fn();
-  expect(contextMenuHandler).toBeTypeOf("function");
-  (contextMenuHandler as (event: {
-    features: Array<{ properties: { NUTS_ID: string } }>;
-    originalEvent: { preventDefault: () => void };
-  }) => void)({
-    features: [{ properties: { NUTS_ID: "FI1B" } }],
-    originalEvent: { preventDefault },
-  });
-
-  expect(preventDefault).toHaveBeenCalledTimes(1);
-  expect(onRegionClick).toHaveBeenLastCalledWith("FI1B");
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
-it("updates the fill styling when the selected slots change", async () => {
-  mapMock.instance.getLayer.mockReturnValue({});
-  const { rerender } = render(<NordicMap regionAId="FI1B" regionBId="SE11" />);
+it("uses the latest metric when data arrives before deferred geometry", async () => {
+  let resolveGeometry!: (value: unknown) => void;
+  const geometryResponse = new Promise((resolve) => { resolveGeometry = resolve; });
+  vi.stubGlobal("fetch", vi.fn((url: unknown) => String(url).includes("uk-country")
+    ? Promise.resolve({ ok: true, json: async () => ukContextFeatureCollection }) : geometryResponse));
+  const { rerender } = render(<NordicMap metric={loadingMetric} />);
+  rerender(<NordicMap metric={metric} />);
+  await act(async () => resolveGeometry({ ok: true, json: async () => europeFeatureCollection }));
+  await waitFor(() => expect(sourceValues()).toEqual([50400, 27200]));
+});
 
-  await waitFor(() => {
-    expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith(
-      "nuts-regions-fill",
-      "fill-color",
-      expect.any(Array),
-    );
-  });
+it("keeps selection on coloured outlines without replacing the GDP fill", async () => {
+  const onRegionClick = vi.fn();
+  const { rerender } = render(<NordicMap metric={metric} regionAId="FI1B" regionBId="PT20" onRegionClick={onRegionClick} />);
+  await waitFor(() => expect(mapMock.layers.has("nuts-selection-outline")).toBe(true));
+  expect(mapMock.layers.get("nuts-selection-halo")).toMatchObject({ paint: { "line-color": "#ffffff", "line-width": 6 } });
+  expect(mapMock.layers.get("nuts-selection-outline")).toMatchObject({ paint: {
+    "line-color": ["case", ["==", ["get", "NUTS_ID"], "FI1B"], REGION_A_COLOR, REGION_B_COLOR],
+  } });
+  emit("click", "PT20");
+  const context = emit("contextmenu", "PT20");
+  expect(context.originalEvent.preventDefault).toHaveBeenCalledOnce();
+  expect(onRegionClick).toHaveBeenCalledTimes(2);
+  rerender(<NordicMap metric={metric} regionAId="PT20" regionBId="FI1B" onRegionClick={onRegionClick} />);
+  expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith("nuts-selection-outline", "line-color",
+    ["case", ["==", ["get", "NUTS_ID"], "PT20"], REGION_A_COLOR, REGION_B_COLOR]);
+  expect(mapMock.instance.setFilter).toHaveBeenCalledWith("nuts-selection-outline", ["any",
+    ["==", ["get", "NUTS_ID"], "PT20"], ["==", ["get", "NUTS_ID"], "FI1B"]]);
+  expect(mapMock.instance.setPaintProperty.mock.calls.filter(([layer, prop]) => layer === "nuts-regions-fill" && prop === "fill-color")
+    .every(([, , expression]) => JSON.stringify(expression) === JSON.stringify(choroplethExpression(metric.scale, NO_DATA_COLORS.light)))).toBe(true);
+});
 
-  rerender(<NordicMap regionAId="NO02" regionBId="FI19" />);
+it("shows safe hover content and refreshes it when data arrives, without selecting", async () => {
+  const onRegionClick = vi.fn();
+  const { rerender, unmount } = render(<NordicMap metric={loadingMetric} onRegionClick={onRegionClick} />);
+  await waitFor(() => expect(mapMock.sources.has("nuts-regions")).toBe(true));
+  emit("mousemove", "FI1B", { NAME_LATN: "Helsinki-Uusimaa" });
+  expect(mapMock.popup.setDOMContent.mock.lastCall?.[0].textContent).toContain("Loading data");
+  rerender(<NordicMap metric={metric} onRegionClick={onRegionClick} />);
+  expect(mapMock.popup.setDOMContent.mock.lastCall?.[0].textContent).toBe("Helsinki-Uusimaa (FI1B)50,400PPS per inhabitant · 2023");
+  emit("mousemove", "ES70", { NAME_LATN: "<img src=x onerror=alert(1)>" });
+  const content = mapMock.popup.setDOMContent.mock.lastCall?.[0] as HTMLElement;
+  expect(content.textContent).toContain("No data");
+  expect(content.querySelector("img")).toBeNull();
+  expect(onRegionClick).not.toHaveBeenCalled();
+  emit("mouseleave");
+  expect(mapMock.popup.remove).toHaveBeenCalledOnce();
+  unmount();
+  expect(mapMock.popup.remove).toHaveBeenCalledTimes(2);
+  expect(mapMock.instance.remove).toHaveBeenCalledOnce();
+});
 
-  expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith(
-    "nuts-regions-fill",
-    "fill-color",
-    [
-      "case",
-      ["==", ["get", "NUTS_ID"], "NO02"],
-      REGION_A_COLOR,
-      ["==", ["get", "NUTS_ID"], "FI19"],
-      REGION_B_COLOR,
-      "#f8fafc",
-    ],
-  );
+it("retains geometry on failure and preserves cached colours on refresh failure", async () => {
+  const { rerender } = render(<NordicMap metric={{ ...loadingMetric, isLoading: false, isError: true }} />);
+  await waitFor(() => expect(sourceValues()).toEqual([null, null]));
+  expect(screen.getByRole("status")).toHaveTextContent("Data unavailable");
+  rerender(<NordicMap metric={{ ...metric, isError: true }} />);
+  expect(sourceValues()).toEqual([50400, 27200]);
+  expect(screen.getByRole("status")).toHaveTextContent("Showing cached values");
+});
+
+it("keeps the choropleth scale while updating neutral colours and legend for dark mode", async () => {
+  render(<NordicMap metric={metric} />);
+  await waitFor(() => expect(mapMock.layers.has("nuts-regions-fill")).toBe(true));
+  act(() => document.documentElement.classList.add("dark"));
+  await waitFor(() => expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith("water-background", "background-color", "#0b1f2a"));
+  expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith("nuts-regions-fill", "fill-color", choroplethExpression(metric.scale, NO_DATA_COLORS.dark));
+  expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith("uk-context-fill", "fill-color", "#334155");
+  expect(screen.getByText("No data").previousElementSibling).toHaveStyle({ backgroundColor: NO_DATA_COLORS.dark });
 });

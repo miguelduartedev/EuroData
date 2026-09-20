@@ -1,18 +1,28 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+
+const snapshotMock = vi.hoisted(() => vi.fn());
+vi.mock("./api/eurostat/queries", () => ({ useNuts2MetricSnapshot: snapshotMock }));
+
+beforeEach(() => {
+  snapshotMock.mockReturnValue({ data: [], isPending: false, isError: false });
+});
 
 vi.mock("./components/NordicMap/NordicMap", () => {
   function NordicMap({
+    metric,
     regionAId,
     regionBId,
     onRegionClick,
   }: {
+    metric: import("./lib/choropleth").MapMetric;
     regionAId?: string;
     regionBId?: string;
     onRegionClick?: (regionId: string) => void;
   }) {
     return (
       <section aria-label="Map test double">
+        <output data-testid="map-metric">{`${metric.label}|${metric.year}|${metric.values.get("FI1B")}|${metric.isLoading}|${metric.isError}`}</output>
         <output data-testid="map-selection">{`${regionAId ?? ""}|${regionBId ?? ""}`}</output>
         <button type="button" onClick={() => onRegionClick?.("FI1B")}>Click FI1B</button>
         <button type="button" onClick={() => onRegionClick?.("SE11")}>Click SE11</button>
@@ -62,4 +72,16 @@ it("uses map clicks to fill, replace, and clear region slots", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Click NO02" }));
   expect(screen.getByTestId("map-selection")).toHaveTextContent("SE11|");
+});
+
+it("passes the fixed GDP snapshot and its loading/error state to the map", () => {
+  snapshotMock.mockReturnValue({ data: undefined, isPending: true, isError: false });
+  const { rerender } = render(<App />);
+  expect(snapshotMock).toHaveBeenCalledWith("gdp_per_capita", 2023);
+  expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita|2023|undefined|true|false");
+  snapshotMock.mockReturnValue({ data: [
+    { regionId: "FI1B", metricId: "gdp_per_capita", year: 2023, value: 50400, unit: "PPS per inhabitant" },
+  ], isPending: false, isError: true });
+  rerender(<App />);
+  expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita|2023|50400|false|true");
 });

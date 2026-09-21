@@ -16,6 +16,7 @@ export interface MapControlsProps {
   years: readonly number[];
   year: number;
   onYearChange: (year: number) => void;
+  isYearLoading?: boolean;
   yearStatus?: string;
 }
 
@@ -30,6 +31,7 @@ export function MapControls({
   years,
   year,
   onYearChange,
+  isYearLoading = false,
   yearStatus,
 }: MapControlsProps) {
   const metricInputId = useId();
@@ -105,38 +107,42 @@ export function MapControls({
         >
           Year
         </label>
-        <Combobox<string, false, number>
-          items={yearItems}
-          value={String(year)}
-          onValueChange={(value) => {
-            const selectedYear = Number(value);
-            if (Number.isInteger(selectedYear)) onYearChange(selectedYear);
-          }}
-          filter={(availableYear, query) => filterText(String(availableYear), query)}
-          autoHighlight
-        >
-          <ComboboxInput
-            id={yearInputId}
-            aria-label="Year"
-            placeholder="Select year"
-            triggerLabel="Show Year options"
-            className="h-11 border-slate-300 bg-white text-slate-900 shadow-sm hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-          />
-          <ComboboxContent className="border border-slate-200 dark:border-slate-700">
-            <ComboboxEmpty>No years found.</ComboboxEmpty>
-            <ComboboxList>
-              {(availableYear: number) => (
-                <ComboboxItem
-                  key={availableYear}
-                  value={String(availableYear)}
-                  className="min-h-11 px-2.5 py-2"
-                >
-                  {availableYear}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+        <div title={isYearLoading ? "Loading available years" : undefined}>
+          <Combobox<string, false, number>
+            items={yearItems}
+            value={String(year)}
+            onValueChange={(value) => {
+              const selectedYear = Number(value);
+              if (Number.isInteger(selectedYear)) onYearChange(selectedYear);
+            }}
+            filter={(availableYear, query) => filterText(String(availableYear), query)}
+            autoHighlight
+            disabled={isYearLoading}
+          >
+            <ComboboxInput
+              id={yearInputId}
+              aria-label="Year"
+              placeholder="Select year"
+              triggerLabel="Show Year options"
+              disabled={isYearLoading}
+              className="h-11 border-slate-300 bg-white text-slate-900 shadow-sm hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+            <ComboboxContent className="border border-slate-200 dark:border-slate-700">
+              <ComboboxEmpty>No years found.</ComboboxEmpty>
+              <ComboboxList>
+                {(availableYear: number) => (
+                  <ComboboxItem
+                    key={availableYear}
+                    value={String(availableYear)}
+                    className="min-h-11 px-2.5 py-2"
+                  >
+                    {availableYear}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </div>
         {yearStatus ? (
           <p className="mt-1.5 text-xs text-muted-foreground" role="status">
             {yearStatus}

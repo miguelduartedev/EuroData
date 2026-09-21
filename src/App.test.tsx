@@ -3,6 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const snapshotMock = vi.hoisted(() => vi.fn());
 const metricYearsMock = vi.hoisted(() => vi.fn());
+vi.mock("./data/region-names", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./data/region-names")>(),
+  useRegionNames: () => ({ data: new Map() }),
+}));
 vi.mock("./api/eurostat/queries", () => ({
   useNuts2MetricSnapshot: snapshotMock,
   useNuts2MetricYears: metricYearsMock,
@@ -50,6 +54,11 @@ it("replaces region selectors with map controls while preserving map click selec
   expect(screen.getByRole("combobox", { name: "Metric" })).toHaveValue("GDP per capita");
   expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2023");
   expect(screen.getByRole("combobox", { name: "Region level" })).toBeDisabled();
+  expect(screen.getByRole("heading", { name: "Explore this metric" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Click a region to see details" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Compare regions" })).toBeDisabled();
+  expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
+  expect(screen.queryByText("Historical trend")).not.toBeInTheDocument();
   expect(screen.queryByRole("combobox", { name: "Region A" })).not.toBeInTheDocument();
   expect(screen.queryByRole("combobox", { name: "Region B" })).not.toBeInTheDocument();
 
@@ -69,6 +78,7 @@ it("uses selected years for the GDP snapshot and map metadata", () => {
 
   expect(snapshotMock).toHaveBeenLastCalledWith("gdp_per_capita", 2024);
   expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita|2024");
+  expect(screen.getByLabelText("Selected year: 2024")).toBeInTheDocument();
 });
 
 it("passes GDP snapshot loading and error state to the map", () => {
@@ -87,11 +97,14 @@ it("keeps the default year available while the live year list loads or fails", (
   metricYearsMock.mockReturnValue({ data: undefined, isPending: true, isError: false });
   const { rerender } = render(<App />);
   expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2023");
-  expect(screen.getByText("Loading available years…")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Year" })).toBeDisabled();
+  expect(screen.getByTitle("Loading available years")).toBeInTheDocument();
+  expect(screen.queryByText("Loading available years…")).not.toBeInTheDocument();
 
   metricYearsMock.mockReturnValue({ data: undefined, isPending: false, isError: true });
   rerender(<App />);
   expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2023");
+  expect(screen.getByRole("combobox", { name: "Year" })).not.toBeDisabled();
   expect(screen.getByText("Showing the default year while available years are unavailable.")).toBeInTheDocument();
 });
 

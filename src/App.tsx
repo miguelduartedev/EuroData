@@ -5,9 +5,11 @@ import { metrics } from "./data/metrics"
 import { gdpChoroplethScale } from "./data/map-metric"
 import { buildMetricLookup } from "./lib/choropleth"
 import { MapControls } from "./components/MapControls/MapControls"
-import { MetricTrend } from "./components/MetricTrend/MetricTrend"
+import { MetricOverview } from "./components/MetricOverview/MetricOverview"
+import { MapGuidance } from "./components/MapGuidance/MapGuidance"
 import { NordicMap } from "./components/NordicMap/NordicMap"
-import { RegionComparison } from "./components/RegionComparison/RegionComparison"
+import { summarizeMetric } from "./lib/metric-summary"
+import { useRegionNames } from "./data/region-names"
 import { RegionProfileRow } from "./components/RegionProfileCard/RegionProfileCard"
 import { ThemeToggle } from "./components/ThemeToggle/ThemeToggle"
 import { regions } from "./data/regions"
@@ -23,12 +25,18 @@ const initialRegionSelections: RegionSelections = {
 
 const mapMetricIds: readonly MetricId[] = ["gdp_per_capita"]
 const mapMetrics = metrics.filter((metric) => mapMetricIds.includes(metric.id))
+const emptyRegionNames: ReadonlyMap<string, string> = new Map()
 
 export function App() {
   const [metricId, setMetricId] = useState<MetricId>("gdp_per_capita")
   const [selectedYear, setSelectedYear] = useState(EUROSTAT_SNAPSHOT_YEAR)
   const metricYears = useNuts2MetricYears(metricId)
   const snapshot = useNuts2MetricSnapshot(metricId, selectedYear)
+  const regionNames = useRegionNames()
+  const summary = useMemo(
+    () => summarizeMetric(snapshot.data ?? [], metricId, selectedYear),
+    [snapshot.data, metricId, selectedYear],
+  )
   const availableYears = useMemo(
     () => Array.from(new Set([selectedYear, ...(metricYears.data ?? [EUROSTAT_SNAPSHOT_YEAR])]))
       .sort((first, second) => second - first),
@@ -58,16 +66,16 @@ export function App() {
   return (
     <main className="min-h-screen bg-background">
       <div className="w-full lg:grid lg:h-dvh lg:grid-rows-[auto_minmax(0,1fr)]">
-        <header className="border-b border-border bg-card px-[clamp(20px,3vw,36px)] py-[22px]">
-          <div className="flex min-w-0 items-start justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <img src="/favicon.svg" alt="" className="size-14 shrink-0" />
+        <header className="border-b border-border bg-card px-[clamp(20px,3vw,36px)] py-3">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+              <img src="/favicon.svg" alt="" width={48} height={48} className="size-12 shrink-0" />
               <div className="min-w-0">
-                <h1 className="m-0 text-[clamp(1.45rem,2.4vw,1.25rem)] tracking-[-0.035em]">
+                <h1 className="m-0 text-[22px] leading-7 font-semibold tracking-[-0.04em] text-foreground">
                   EuroData
                 </h1>
-                <p className="mt-[5px] text-slate-500 dark:text-slate-400">
-                  Compare European regions using Eurostat regional data.
+                <p className="mt-0.5 text-xs leading-4 text-muted-foreground sm:text-[13px] sm:leading-[18px]">
+                  Explore European regions with Eurostat data.
                 </p>
               </div>
             </div>
@@ -88,12 +96,11 @@ export function App() {
                 years={availableYears}
                 year={selectedYear}
                 onYearChange={setSelectedYear}
+                isYearLoading={metricYears.isPending}
                 yearStatus={
-                  metricYears.isPending
-                    ? "Loading available years…"
-                    : metricYears.isError
-                      ? "Showing the default year while available years are unavailable."
-                      : undefined
+                  metricYears.isError
+                    ? "Showing the default year while available years are unavailable."
+                    : undefined
                 }
               />
             </div>
@@ -119,8 +126,16 @@ export function App() {
               regionAColor={REGION_A_COLOR}
               regionBColor={REGION_B_COLOR}
             />
-            <RegionComparison />
-            <MetricTrend />
+            <MetricOverview
+              metric={selectedMetric}
+              year={selectedYear}
+              summary={summary}
+              regionNames={regionNames.data ?? emptyRegionNames}
+              isLoading={snapshot.isPending}
+              isError={snapshot.isError}
+              hasData={snapshot.data !== undefined}
+            />
+            <MapGuidance />
           </aside>
         </div>
       </div>

@@ -29,8 +29,11 @@ scope, but Eurostat can revise the published values.
 `useNuts2MetricSnapshot(metricId, year = 2023)` in `queries.ts` exposes this request
 through the existing TanStack Query provider with key
 `["eurostat", "nuts2", metricId, year]` and a one-hour stale time. It inherits the
-provider's retry and window-focus behavior. The hook is not mounted in the UI;
-the map retains its neutral styling and the comparison experience is unchanged.
+provider's retry and window-focus behavior. App mounts this hook for Europe-wide
+GDP per capita in 2023. A value lookup joins observations to GISCO features by
+`NUTS_ID` in a derived GeoJSON collection, without mutating the original geometry.
+The map renders a GDP-per-capita choropleth with a shared colour scale and legend.
+Missing or null observations remain a neutral no-data state, never zero.
 
 Normalization retains source geography codes, missing values as `null`, numeric
 zero, and opaque observation flags. It does not filter by European metadata or

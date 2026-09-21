@@ -27,6 +27,7 @@ vi.mock("./components/NordicMap/NordicMap", () => {
         <button type="button" onClick={() => onRegionClick?.("FI1B")}>Click FI1B</button>
         <button type="button" onClick={() => onRegionClick?.("SE11")}>Click SE11</button>
         <button type="button" onClick={() => onRegionClick?.("NO02")}>Click NO02</button>
+        <button type="button" onClick={() => onRegionClick?.("PT20")}>Click PT20</button>
       </section>
     );
   }
@@ -84,4 +85,33 @@ it("passes the fixed GDP snapshot and its loading/error state to the map", () =>
   ], isPending: false, isError: true });
   rerender(<App />);
   expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita|2023|50400|false|true");
+});
+
+it("safely selects, swaps and clears PT20 without Nordic profile metadata", () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
+  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^PT20\|$/);
+  expect(screen.getByRole("combobox", { name: "Region A" })).toHaveValue("PT20");
+  expect(screen.queryByRole("region", { name: "Selected regions" })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
+  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^PT20\|FI1B$/);
+  expect(screen.getByLabelText("Region B: Helsinki-Uusimaa")).toBeInTheDocument();
+  expect(screen.queryByLabelText(/^Region A:/)).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Swap selected regions" }));
+  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^FI1B\|PT20$/);
+  expect(screen.getByRole("combobox", { name: "Region B" })).toHaveValue("PT20");
+  expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
+  expect(screen.queryByLabelText(/^Region B:/)).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
+  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^FI1B\|$/);
+  expect(screen.getByRole("combobox", { name: "Region B" })).toHaveValue("");
+
+  fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
+  fireEvent.click(screen.getByRole("button", { name: "Clear Region B selection" }));
+  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^FI1B\|$/);
+  expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
 });

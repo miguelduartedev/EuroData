@@ -477,6 +477,10 @@ export function NordicMap({ metric, regionAId, regionBId, onRegionClick }: Nordi
     <div className="relative h-[360px] w-full sm:h-[420px] md:h-[480px] lg:h-auto lg:min-h-0 lg:flex-1">
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} aria-label="Interactive map of European NUTS 2 regions" />
       <MapLegend metric={metric} noDataColor={mapPalette(isDarkMode).regionFill} />
+      <p aria-label="Geographic data attribution" className="absolute bottom-0 right-0 z-10 max-w-full rounded-tl bg-card px-2 py-1 text-[11px] leading-snug text-card-foreground">
+        <a href="https://ec.europa.eu/eurostat/en/web/gisco/geodata/statistical-units" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Eurostat / GISCO</a>
+        {" · © EuroGeographics for the administrative boundaries"}
+      </p>
     </div>
   );
 }

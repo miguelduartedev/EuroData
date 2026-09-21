@@ -129,6 +129,12 @@ it("loads joined geometry and a shared legend while keeping UK context neutral",
   expect(screen.getByText("PPS per inhabitant")).toBeInTheDocument();
   expect(screen.getAllByRole("listitem")).toHaveLength(7);
   expect(screen.getByText("No data")).toBeInTheDocument();
+  expect(screen.getByLabelText("Geographic data attribution")).toHaveTextContent(
+    "Eurostat / GISCO · © EuroGeographics for the administrative boundaries",
+  );
+  expect(screen.getByRole("link", { name: "Eurostat / GISCO" })).toHaveAttribute(
+    "href", "https://ec.europa.eu/eurostat/en/web/gisco/geodata/statistical-units",
+  );
   expect(mapMock.instance.on.mock.calls.some(([, layerId]) => layerId === "uk-context-fill")).toBe(false);
   expect(mapMock.instance.fitBounds).toHaveBeenCalledWith([[-12, 34], [36, 72]], expect.objectContaining({ duration: 0 }));
   expect(europeFeatureCollection.features[0].properties).not.toHaveProperty("metricValue");

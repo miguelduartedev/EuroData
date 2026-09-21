@@ -1,6 +1,6 @@
 import type { MetricId, Observation } from "../../types/metric";
 import { getEurostatDataset } from "./client";
-import { parseMetricObservations } from "./parser";
+import { parseAnnualTimePeriods, parseMetricObservations } from "./parser";
 import type { MetricConfiguration } from "./types";
 
 export const EUROSTAT_START_YEAR = 2015;
@@ -41,6 +41,16 @@ export async function getNuts2MetricSnapshot(
   });
 
   return parseMetricObservations(dataset, { metricId, unit: metric.unit });
+}
+
+export async function getNuts2MetricYears(metricId: MetricId): Promise<number[]> {
+  const metric = eurostatMetrics[metricId];
+  const dataset = await getEurostatDataset(metric.datasetId, {
+    ...metric.filters,
+    geoLevel: "nuts2",
+  });
+
+  return parseAnnualTimePeriods(dataset);
 }
 
 export async function getMetricHistory(regionIds: string[], metricId: MetricId): Promise<Observation[]> {

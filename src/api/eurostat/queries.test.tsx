@@ -4,7 +4,7 @@ import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { europeSnapshotFixture } from "../../test/fixtures/eurostatJsonStat";
 import { EurostatHttpError } from "./client";
-import { useNuts2MetricSnapshot } from "./queries";
+import { useNuts2MetricSnapshot, useNuts2MetricYears } from "./queries";
 
 let queryClient: QueryClient;
 
@@ -16,9 +16,16 @@ beforeEach(() => {
     ok: true,
     json: async () => ({
       ...europeSnapshotFixture,
+      size: [url.searchParams.has("time") ? 1 : 2, ...europeSnapshotFixture.size.slice(1)],
       dimension: {
         ...europeSnapshotFixture.dimension,
-        time: { category: { index: { [url.searchParams.get("time")!]: 0 } } },
+        time: {
+          category: {
+            index: url.searchParams.has("time")
+              ? { [url.searchParams.get("time")!]: 0 }
+              : { "2024": 0, "2023": 1 },
+          },
+        },
         unit: { category: { index: { [url.searchParams.get("unit")!]: 0 } } },
       },
     }),
@@ -75,5 +82,16 @@ it("surfaces API failures as query errors and inherits the disabled retry settin
   expect(result.current.error).toBeInstanceOf(EurostatHttpError);
   expect(result.current.error).toMatchObject({ status: 503 });
   expect(result.current.data).toBeUndefined();
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it("caches available years separately from metric snapshots", async () => {
+  const years = renderHook(() => useNuts2MetricYears("gdp_per_capita"), { wrapper });
+
+  await waitFor(() => expect(years.result.current.isSuccess).toBe(true));
+  expect(years.result.current.data).toEqual([2024, 2023]);
+  expect(queryClient.getQueryData(["eurostat", "nuts2", "years", "gdp_per_capita"])).toBe(
+    years.result.current.data,
+  );
   expect(fetch).toHaveBeenCalledTimes(1);
 });

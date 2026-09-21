@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { EurostatResponseError } from "./client";
-import { parseMetricObservations } from "./parser";
+import { parseAnnualTimePeriods, parseMetricObservations } from "./parser";
 import { europeSnapshotFixture, sparseEurostatFixture } from "../../test/fixtures/eurostatJsonStat";
 
 it("maps sparse JSON-stat values to the correct geography and year without losing zero", () => {
@@ -20,6 +20,22 @@ it("rejects malformed JSON-stat responses", () => {
     metricId: "gdp_per_capita",
     unit: "PPS per inhabitant",
   })).toThrow(EurostatResponseError);
+});
+
+it("extracts annual periods as descending numeric years", () => {
+  expect(parseAnnualTimePeriods(sparseEurostatFixture)).toEqual([2016, 2015]);
+});
+
+it("rejects non-annual time codes", () => {
+  const dataset = {
+    ...sparseEurostatFixture,
+    dimension: {
+      ...sparseEurostatFixture.dimension,
+      time: { category: { index: { "2023-Q1": 0 } } },
+    },
+  };
+
+  expect(() => parseAnnualTimePeriods(dataset)).toThrow(EurostatResponseError);
 });
 
 it.each(["sparse", "dense"])("normalizes a European snapshot with %s values and flags", (encoding) => {

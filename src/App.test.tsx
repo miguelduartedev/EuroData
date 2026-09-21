@@ -2,10 +2,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const snapshotMock = vi.hoisted(() => vi.fn());
-vi.mock("./api/eurostat/queries", () => ({ useNuts2MetricSnapshot: snapshotMock }));
+const metricYearsMock = vi.hoisted(() => vi.fn());
+vi.mock("./api/eurostat/queries", () => ({
+  useNuts2MetricSnapshot: snapshotMock,
+  useNuts2MetricYears: metricYearsMock,
+}));
 
 beforeEach(() => {
   snapshotMock.mockReturnValue({ data: [], isPending: false, isError: false });
+  metricYearsMock.mockReturnValue({ data: [2024, 2023, 2022], isPending: false, isError: false });
 });
 
 vi.mock("./components/NordicMap/NordicMap", () => {
@@ -39,43 +44,34 @@ import { App } from "./App";
 
 afterEach(cleanup);
 
-it("synchronizes selector choices, map clicks, and swapping through App state", () => {
+it("replaces region selectors with map controls while preserving map click selection", () => {
   render(<App />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Show Region A regions" }));
-  fireEvent.change(screen.getByRole("combobox", { name: "Region A" }), { target: { value: "FI1B" } });
-  fireEvent.click(screen.getByRole("option", { name: /Helsinki-Uusimaa, Finland/ }));
+  expect(screen.getByRole("combobox", { name: "Metric" })).toHaveValue("GDP per capita");
+  expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2023");
+  expect(screen.getByRole("combobox", { name: "Region level" })).toBeDisabled();
+  expect(screen.queryByRole("combobox", { name: "Region A" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Region B" })).not.toBeInTheDocument();
 
-  expect(screen.getByTestId("map-selection")).toHaveTextContent("FI1B|");
-  expect(screen.getByRole("combobox", { name: "Region A" })).toHaveValue("Helsinki-Uusimaa, Finland");
-
+  fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
   fireEvent.click(screen.getByRole("button", { name: "Click SE11" }));
   expect(screen.getByTestId("map-selection")).toHaveTextContent("FI1B|SE11");
-  expect(screen.getByRole("combobox", { name: "Region B" })).toHaveValue("Stockholm, Sweden");
-
-  fireEvent.click(screen.getByRole("button", { name: "Swap selected regions" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent("SE11|FI1B");
+  expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
+  expect(screen.getByLabelText("Region B: Stockholm")).toBeInTheDocument();
 });
 
-it("uses map clicks to fill, replace, and clear region slots", () => {
+it("uses selected years for the GDP snapshot and map metadata", () => {
   render(<App />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
-  fireEvent.click(screen.getByRole("button", { name: "Click SE11" }));
-  fireEvent.click(screen.getByRole("button", { name: "Click NO02" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent("FI1B|NO02");
+  fireEvent.click(screen.getByRole("button", { name: "Show Year options" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Year" }), { target: { value: "2024" } });
+  fireEvent.click(screen.getByRole("option", { name: "2024" }));
 
-  fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent("|NO02");
-
-  fireEvent.click(screen.getByRole("button", { name: "Click SE11" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent("SE11|NO02");
-
-  fireEvent.click(screen.getByRole("button", { name: "Click NO02" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent("SE11|");
+  expect(snapshotMock).toHaveBeenLastCalledWith("gdp_per_capita", 2024);
+  expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita|2024");
 });
 
-it("passes the fixed GDP snapshot and its loading/error state to the map", () => {
+it("passes GDP snapshot loading and error state to the map", () => {
   snapshotMock.mockReturnValue({ data: undefined, isPending: true, isError: false });
   const { rerender } = render(<App />);
   expect(snapshotMock).toHaveBeenCalledWith("gdp_per_capita", 2023);
@@ -87,12 +83,23 @@ it("passes the fixed GDP snapshot and its loading/error state to the map", () =>
   expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita|2023|50400|false|true");
 });
 
-it("safely selects, swaps and clears PT20 without Nordic profile metadata", () => {
+it("keeps the default year available while the live year list loads or fails", () => {
+  metricYearsMock.mockReturnValue({ data: undefined, isPending: true, isError: false });
+  const { rerender } = render(<App />);
+  expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2023");
+  expect(screen.getByText("Loading available years…")).toBeInTheDocument();
+
+  metricYearsMock.mockReturnValue({ data: undefined, isPending: false, isError: true });
+  rerender(<App />);
+  expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2023");
+  expect(screen.getByText("Showing the default year while available years are unavailable.")).toBeInTheDocument();
+});
+
+it("safely selects and clears PT20 without Nordic profile metadata", () => {
   render(<App />);
 
   fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
   expect(screen.getByTestId("map-selection")).toHaveTextContent(/^PT20\|$/);
-  expect(screen.getByRole("combobox", { name: "Region A" })).toHaveValue("PT20");
   expect(screen.queryByRole("region", { name: "Selected regions" })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
@@ -100,18 +107,7 @@ it("safely selects, swaps and clears PT20 without Nordic profile metadata", () =
   expect(screen.getByLabelText("Region B: Helsinki-Uusimaa")).toBeInTheDocument();
   expect(screen.queryByLabelText(/^Region A:/)).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Swap selected regions" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^FI1B\|PT20$/);
-  expect(screen.getByRole("combobox", { name: "Region B" })).toHaveValue("PT20");
-  expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
-  expect(screen.queryByLabelText(/^Region B:/)).not.toBeInTheDocument();
-
   fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^FI1B\|$/);
-  expect(screen.getByRole("combobox", { name: "Region B" })).toHaveValue("");
-
-  fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
-  fireEvent.click(screen.getByRole("button", { name: "Clear Region B selection" }));
-  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^FI1B\|$/);
-  expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
+  expect(screen.getByTestId("map-selection")).toHaveTextContent(/^\|FI1B$/);
+  expect(screen.getByLabelText("Region B: Helsinki-Uusimaa")).toBeInTheDocument();
 });

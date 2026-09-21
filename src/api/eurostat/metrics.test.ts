@@ -5,7 +5,13 @@ import {
   EurostatResponseError,
   getEurostatDataset,
 } from "./client";
-import { EUROSTAT_START_YEAR, eurostatMetrics, getMetricHistory, getNuts2MetricSnapshot } from "./metrics";
+import {
+  EUROSTAT_START_YEAR,
+  eurostatMetrics,
+  getMetricHistory,
+  getNuts2MetricSnapshot,
+  getNuts2MetricYears,
+} from "./metrics";
 import { europeSnapshotFixture, sparseEurostatFixture } from "../../test/fixtures/eurostatJsonStat";
 
 afterEach(() => {
@@ -39,6 +45,19 @@ it.each([undefined, 2022])("requests all NUTS 2 GDP observations for year %s", a
   expect(observations.find(({ regionId }) => regionId === "PTZZ")?.value).toBeNull();
   expect(observations.find(({ regionId }) => regionId === "ES70")).toMatchObject({ value: null, status: ":" });
   expect(observations.find(({ regionId }) => regionId === "FI1B")).toMatchObject({ value: 50400, status: "e" });
+});
+
+it("requests every available NUTS 2 GDP year without a time filter", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => sparseEurostatFixture });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(getNuts2MetricYears("gdp_per_capita")).resolves.toEqual([2016, 2015]);
+
+  const requestedUrl = new URL(fetchMock.mock.calls[0][0]);
+  expect(Object.fromEntries(requestedUrl.searchParams)).toEqual({
+    freq: "A", unit: "PPS_EU27_2020_HAB", geoLevel: "nuts2",
+  });
+  expect(requestedUrl.searchParams.has("time")).toBe(false);
 });
 
 it.each([

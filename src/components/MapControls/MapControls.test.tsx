@@ -64,7 +64,7 @@ it("filters metric and year options, then supports keyboard year selection", () 
   expect(onYearChange).toHaveBeenCalledWith(2024);
 });
 
-it("shows an available-year loading or error status when supplied", () => {
+it("disables the Year control and provides loading guidance while years load", () => {
   render(
     <MapControls
       metrics={metrics}
@@ -73,9 +73,11 @@ it("shows an available-year loading or error status when supplied", () => {
       years={[2023]}
       year={2023}
       onYearChange={vi.fn()}
-      yearStatus="Showing the default year while available years are unavailable."
+      isYearLoading
     />,
   );
 
-  expect(screen.getByRole("status")).toHaveTextContent("Showing the default year");
+  expect(screen.getByRole("combobox", { name: "Year" })).toBeDisabled();
+  expect(screen.getByTitle("Loading available years")).toBeInTheDocument();
+  expect(screen.queryByText("Loading available years…")).not.toBeInTheDocument();
 });

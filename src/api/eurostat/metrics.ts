@@ -1,9 +1,10 @@
 import type { MetricId, Observation } from "../../types/metric";
 import { getEurostatDataset } from "./client";
-import { parseMetricObservations } from "./parser";
+import { parseAnnualTimePeriods, parseMetricObservations } from "./parser";
 import type { MetricConfiguration } from "./types";
 
 export const EUROSTAT_START_YEAR = 2015;
+export const EUROSTAT_SNAPSHOT_YEAR = 2023;
 
 export const eurostatMetrics: Record<MetricId, MetricConfiguration> = {
   gdp_per_capita: {
@@ -25,6 +26,31 @@ export const eurostatMetrics: Record<MetricId, MetricConfiguration> = {
 
 function uniqueRegionIds(regionIds: string[]): string[] {
   return [...new Set(regionIds)];
+}
+
+/** All source NUTS 2 categories for one year, including missing observations. */
+export async function getNuts2MetricSnapshot(
+  metricId: MetricId,
+  year = EUROSTAT_SNAPSHOT_YEAR,
+): Promise<Observation[]> {
+  const metric = eurostatMetrics[metricId];
+  const dataset = await getEurostatDataset(metric.datasetId, {
+    ...metric.filters,
+    geoLevel: "nuts2",
+    time: String(year),
+  });
+
+  return parseMetricObservations(dataset, { metricId, unit: metric.unit });
+}
+
+export async function getNuts2MetricYears(metricId: MetricId): Promise<number[]> {
+  const metric = eurostatMetrics[metricId];
+  const dataset = await getEurostatDataset(metric.datasetId, {
+    ...metric.filters,
+    geoLevel: "nuts2",
+  });
+
+  return parseAnnualTimePeriods(dataset);
 }
 
 export async function getMetricHistory(regionIds: string[], metricId: MetricId): Promise<Observation[]> {

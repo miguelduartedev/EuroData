@@ -46,6 +46,21 @@ function validateDataset(dataset: EurostatJsonStatDataset): void {
   });
 }
 
+export function parseAnnualTimePeriods(dataset: EurostatJsonStatDataset): number[] {
+  validateDataset(dataset);
+
+  const timeDimensionIndex = dataset.id.indexOf("time");
+  return codesByPosition(dataset, "time", dataset.size[timeDimensionIndex])
+    .map((timeCode) => {
+      const year = Number(timeCode);
+      if (!Number.isInteger(year)) {
+        throw new EurostatResponseError(`Eurostat response contains a non-annual time value: ${timeCode}.`);
+      }
+      return year;
+    })
+    .sort((first, second) => second - first);
+}
+
 function flatIndex(dataset: EurostatJsonStatDataset, positions: number[]): number {
   return positions.reduce((result, position, dimensionIndex) => {
     const stride = dataset.size.slice(dimensionIndex + 1).reduce((product, size) => product * size, 1);

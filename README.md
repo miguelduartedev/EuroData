@@ -1,6 +1,6 @@
-# Nordic Life Data Explorer
+# EuroData
 
-Nordic Life Data Explorer is an interactive web app for exploring and comparing **Nordic NUTS 2 regions** using official European statistical data.
+EuroData is an interactive web app for exploring and comparing **European NUTS 2 regions** using official European statistical data.
 
 The goal is to make regional economic data easier to understand through an interactive map, direct region-to-region comparisons, and historical trends.
 
@@ -8,7 +8,7 @@ The project currently focuses on Denmark, Finland, Iceland, Norway, and Sweden.
 
 ## What it does
 
-Users can explore Nordic statistical regions on an interactive map and compare two regions across selected indicators.
+Users can explore European statistical regions on an interactive map and compare two regions across selected indicators.
 
 Each metric is backed by historical annual data, allowing the app to show both the latest available value and how the regions have developed over time.
 
@@ -87,7 +87,7 @@ GISCO NUTS 2 GeoJSON
         ↓
 MapLibre
         ↓
-Interactive Nordic regions
+Interactive European regions
 ```
 
 This keeps Eurostat-specific response formats and dataset details isolated from the rest of the application.
@@ -130,7 +130,7 @@ The project also contains a live Eurostat verification command:
 npm run verify:eurostat
 ```
 
-This checks the real API against selected Nordic regions and verifies that the configured datasets can be parsed into the application's normalized format.
+This checks the real API against selected European regions and verifies that the configured datasets can be parsed into the application's normalized format.
 
 ## Why make this project
 

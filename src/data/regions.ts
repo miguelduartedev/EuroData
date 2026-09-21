@@ -1,8 +1,8 @@
 import type { Region } from "../types/region";
 
 /**
- * Nordic NUTS 2 regions mirrored from public/data/nordic-nuts-2.geojson.
- * The bundled GISCO feature properties are the source of truth for IDs/names.
+ * European NUTS 2 comparison metadata retained for the current selector/profile UI.
+ * Every ID is present in the complete public/data/europe-nuts-2-2024.geojson GISCO asset.
  */
 export const regions: Region[] = [
   { id: "DK01", name: "Hovedstaden", countryCode: "DK", countryName: "Denmark" },

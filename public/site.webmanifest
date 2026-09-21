@@ -1,6 +1,6 @@
 {
-  "name": "Nordic Life Data Explorer",
-  "short_name": "Nordic Life Data",
+  "name": "EuroData",
+  "short_name": "EuroData",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -15,7 +15,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#f7f9fb",
-  "background_color": "#f7f9fb",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
   "display": "standalone"
 }

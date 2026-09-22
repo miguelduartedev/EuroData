@@ -18,11 +18,12 @@ export function useNuts2MetricYears(metricId: MetricId) {
   });
 }
 
-export function useRegionMetricHistory(regionId: string | undefined, metricId: MetricId) {
+export function useRegionMetricHistory(regionIds: readonly string[], metricId: MetricId) {
+  const normalizedRegionIds = [...new Set(regionIds)].sort();
   return useQuery({
-    queryKey: ["eurostat", "history", metricId, regionId],
-    queryFn: () => getMetricHistory([regionId!], metricId),
-    enabled: regionId !== undefined,
+    queryKey: ["eurostat", "history", metricId, ...normalizedRegionIds],
+    queryFn: () => getMetricHistory(normalizedRegionIds, metricId),
+    enabled: normalizedRegionIds.length > 0,
     staleTime: 60 * 60 * 1000,
   });
 }

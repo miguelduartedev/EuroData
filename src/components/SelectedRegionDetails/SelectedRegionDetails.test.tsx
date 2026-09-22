@@ -1,12 +1,14 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { SelectedRegionDetails } from "./SelectedRegionDetails";
 import { metrics } from "@/data/metrics";
+import { REGION_A_COLOR } from "@/lib/region-colors";
 
 afterEach(cleanup);
 const props = {
   region: { id: "PT20", name: "Região Autónoma dos Açores", countryName: "Portugal" },
   metric: metrics[0], year: 2023, value: 28100,
+  color: REGION_A_COLOR,
   isLoading: false, isError: false, hasData: true,
   trend: [{ year: 2015, value: 22000 }, { year: 2020, value: null }, { year: 2023, value: 28100 }],
   change: { percent: 27.727, sinceYear: 2015 }, rank: { position: 84, total: 276 },
@@ -26,12 +28,16 @@ it("retains numeric zero and displays metadata, unit and year", () => {
   expect(screen.getByText("Select another region to compare")).toBeInTheDocument();
   expect(screen.getByText("+27.7%")).toBeInTheDocument();
   expect(screen.getByText("84 / 276")).toBeInTheDocument();
-  expect(screen.getByRole("img", { name: "GDP per capita historical line chart" })).toBeInTheDocument();
-  const latestPoint = screen.getByRole("button", { name: "2023: 28,100 PPS per inhabitant" });
-  expect(screen.getByRole("button", { name: "2015: 22,000 PPS per inhabitant" })).toBeInTheDocument();
+  const chart = screen.getByRole("img", { name: "GDP per capita historical line chart" });
+  expect(chart).toHaveAttribute("viewBox", "0 0 640 220");
+  expect(chart).toHaveClass("h-auto", "w-full");
+  expect(chart.querySelector('[data-series-id="PT20"]')).toHaveAttribute("stroke", REGION_A_COLOR);
+  expect(within(screen.getByLabelText("GDP per capita trend")).getByText("Região Autónoma dos Açores")).toBeInTheDocument();
+  const latestPoint = screen.getByRole("button", { name: "Região Autónoma dos Açores, 2023: 28,100 PPS per inhabitant" });
+  expect(screen.getByRole("button", { name: "Região Autónoma dos Açores, 2015: 22,000 PPS per inhabitant" })).toBeInTheDocument();
   expect(screen.getByText("2020")).toBeInTheDocument();
   fireEvent.mouseEnter(latestPoint);
-  expect(screen.getByRole("tooltip")).toHaveTextContent(/2023.*28,100/);
+  expect(screen.getByRole("tooltip")).toHaveTextContent(/2023.*Região Autónoma dos Açores.*28,100/);
   fireEvent.mouseLeave(latestPoint);
   expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 });
@@ -63,8 +69,8 @@ it("filters the chart and change statistic with a valid client-side year range",
   expect(fromYear).toHaveValue("2015");
   expect(screen.getByText("+25%")).toBeInTheDocument();
   expect(screen.getByText("since 2015")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "2013: 100 PPS per inhabitant" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "2023: 250 PPS per inhabitant" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Região Autónoma dos Açores, 2013: 100 PPS per inhabitant" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Região Autónoma dos Açores, 2023: 250 PPS per inhabitant" })).toBeInTheDocument();
   expect([...((toYear as HTMLSelectElement).options)].map((option) => option.value)).not.toContain("2013");
 
   fireEvent.change(toYear, { target: { value: "2013" } });

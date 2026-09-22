@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { CountryFlag } from "@/components/CountryFlag/CountryFlag";
 import type { RegionMetadata } from "@/data/region-names";
@@ -6,20 +6,20 @@ import type { MetricDefinition } from "@/types/metric";
 import { finiteValue } from "@/lib/choropleth";
 import {
   changeOverPeriod,
-  defaultTrendRange,
   filterTrendRange,
   selectableTrendYears,
   type MetricRank,
   type TrendPoint,
-  type TrendRange,
 } from "@/lib/metric-trend";
 import { TrendChart } from "./TrendChart";
+import { useTrendRange } from "./useTrendRange";
 
 interface SelectedRegionDetailsProps {
   region: RegionMetadata;
   metric: MetricDefinition;
   year: number;
   value: number | null;
+  color: string;
   isLoading: boolean;
   isError: boolean;
   hasData: boolean;
@@ -33,35 +33,17 @@ interface SelectedRegionDetailsProps {
 const numberFormat = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
 
 export function SelectedRegionDetails({
-  region, metric, year, value, isLoading, isError, hasData,
+  region, metric, year, value, color, isLoading, isError, hasData,
   trend, rank, isHistoryLoading, isHistoryError, hasHistoryData,
 }: SelectedRegionDetailsProps) {
   const headingId = useId();
-  const [selectedRange, setSelectedRange] = useState<TrendRange | null>(null);
   const loading = isLoading && !hasData;
   const unavailable = isError && !hasData;
   const numericValue = finiteValue(value);
   const availableTrendYears = useMemo(() => selectableTrendYears(trend), [trend]);
-  const initialRange = useMemo(() => defaultTrendRange(trend, year), [trend, year]);
-  const range = selectedRange && availableTrendYears.includes(selectedRange.fromYear) && availableTrendYears.includes(selectedRange.toYear) && selectedRange.fromYear <= selectedRange.toYear
-    ? selectedRange
-    : initialRange;
+  const { range, setFromYear, setToYear } = useTrendRange(availableTrendYears, year, `${region.id}:${metric.id}`);
   const filteredTrend = useMemo(() => filterTrendRange(trend, range), [trend, range]);
   const change = useMemo(() => changeOverPeriod(filteredTrend), [filteredTrend]);
-
-  useEffect(() => {
-    setSelectedRange(initialRange);
-  }, [region.id, metric.id, year, initialRange?.fromYear, initialRange?.toYear]);
-
-  const handleFromYearChange = (fromYear: number) => {
-    if (!range || !availableTrendYears.includes(fromYear)) return;
-    setSelectedRange({ fromYear, toYear: Math.max(fromYear, range.toYear) });
-  };
-
-  const handleToYearChange = (toYear: number) => {
-    if (!range || !availableTrendYears.includes(toYear)) return;
-    setSelectedRange({ fromYear: Math.min(range.fromYear, toYear), toYear });
-  };
 
   return (
     <Card role="region" aria-labelledby={headingId} aria-busy={loading} className="gap-0 rounded-lg border border-border py-0 shadow-none ring-0">
@@ -99,12 +81,15 @@ export function SelectedRegionDetails({
       </div>
       <TrendChart
         metric={metric}
+        regionId={region.id}
+        regionName={region.name}
+        color={color}
         points={filteredTrend}
         availableYears={availableTrendYears}
         fromYear={range?.fromYear}
         toYear={range?.toYear}
-        onFromYearChange={handleFromYearChange}
-        onToYearChange={handleToYearChange}
+        onFromYearChange={setFromYear}
+        onToYearChange={setToYear}
         isLoading={isHistoryLoading}
         isError={isHistoryError}
         hasData={hasHistoryData}

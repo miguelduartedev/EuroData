@@ -1,9 +1,6 @@
-import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { RegionComparison } from "../components/RegionComparison/RegionComparison";
+import { metricDifference } from "../lib/metric-trend";
 
 it("renders the starter test environment", () => {
-  render(<RegionComparison />);
-
-  expect(screen.getByText("Key metrics")).toBeInTheDocument();
+  expect(metricDifference(30, 20)).toEqual({ value: 10, percent: 50 });
 });

@@ -19,6 +19,7 @@ beforeEach(() => {
   metadataMock.mockReturnValue({ data: new Map([
     ["PT20", { id: "PT20", name: "Região Autónoma dos Açores", countryCode: "PT", countryName: "Portugal" }],
     ["FI1B", { id: "FI1B", name: "Helsinki-Uusimaa", countryCode: "FI", countryName: "Finland" }],
+    ["SE11", { id: "SE11", name: "Stockholm", countryCode: "SE", countryName: "Sweden" }],
   ]) });
   snapshotMock.mockReturnValue({ data: [], isPending: false, isError: false });
   historyMock.mockReturnValue({ data: [], isPending: false, isError: false });
@@ -53,6 +54,7 @@ vi.mock("./components/NordicMap/NordicMap", () => {
 });
 
 import { App } from "./App";
+import { REGION_B_COLOR } from "./lib/region-colors";
 
 afterEach(cleanup);
 
@@ -73,8 +75,10 @@ it("replaces region selectors with map controls while preserving map click selec
   fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
   fireEvent.click(screen.getByRole("button", { name: "Click SE11" }));
   expect(screen.getByTestId("map-selection")).toHaveTextContent("FI1B|SE11");
+  expect(screen.getByRole("region", { name: "Region comparison" })).toBeInTheDocument();
   expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
   expect(screen.getByLabelText("Region B: Stockholm")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Explore this metric" })).not.toBeInTheDocument();
 });
 
 it("uses selected years for the GDP snapshot and map metadata", () => {
@@ -125,13 +129,40 @@ it("safely selects and clears PT20 without Nordic profile metadata", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
   expect(screen.getByTestId("map-selection")).toHaveTextContent(/^PT20\|FI1B$/);
+  expect(screen.getByLabelText("Region A: Região Autónoma dos Açores")).toBeInTheDocument();
   expect(screen.getByLabelText("Region B: Helsinki-Uusimaa")).toBeInTheDocument();
-  expect(screen.queryByLabelText(/^Region A:/)).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
   expect(screen.getByTestId("map-selection")).toHaveTextContent(/^\|FI1B$/);
   expect(screen.getByRole("region", { name: "Helsinki-Uusimaa" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Region B: Helsinki-Uusimaa")).not.toBeInTheDocument();
+});
+
+it("uses one two-region history hook input and returns to single-region mode after deselection", () => {
+  snapshotMock.mockReturnValue({ data: [
+    { regionId: "FI1B", metricId: "gdp_per_capita", year: 2023, value: 50000, unit: "PPS per inhabitant" },
+    { regionId: "PT20", metricId: "gdp_per_capita", year: 2023, value: 25000, unit: "PPS per inhabitant" },
+  ], isPending: false, isError: false });
+  historyMock.mockReturnValue({ data: [
+    { regionId: "FI1B", metricId: "gdp_per_capita", year: 2013, value: 30000, unit: "PPS per inhabitant" },
+    { regionId: "FI1B", metricId: "gdp_per_capita", year: 2023, value: 50000, unit: "PPS per inhabitant" },
+    { regionId: "PT20", metricId: "gdp_per_capita", year: 2013, value: 20000, unit: "PPS per inhabitant" },
+    { regionId: "PT20", metricId: "gdp_per_capita", year: 2023, value: 25000, unit: "PPS per inhabitant" },
+  ], isPending: false, isError: false });
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
+  fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
+  expect(historyMock).toHaveBeenLastCalledWith(["FI1B", "PT20"], "gdp_per_capita");
+  expect(screen.getByRole("region", { name: "Region comparison" })).toBeInTheDocument();
+  expect(screen.getByText("25,000 PPS per inhabitant")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Click FI1B" }));
+  expect(screen.queryByRole("region", { name: "Region comparison" })).not.toBeInTheDocument();
+  const singleRegion = within(screen.getByRole("region", { name: "Região Autónoma dos Açores" }));
+  const singleChart = singleRegion.getByRole("img", { name: "GDP per capita historical line chart" });
+  expect(singleChart.querySelector('[data-series-id="PT20"]')).toHaveAttribute("stroke", REGION_B_COLOR);
+  expect(historyMock).toHaveBeenLastCalledWith(["PT20"], "gdp_per_capita");
 });
 
 it("shows generic single-region details from the snapshot and restores guidance on deselection", () => {

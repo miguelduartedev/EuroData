@@ -33,15 +33,32 @@ export function selectableTrendYears(points: readonly TrendPoint[]): number[] {
     .map((point) => point.year);
 }
 
-export function defaultTrendRange(points: readonly TrendPoint[], activeYear: number): TrendRange | null {
-  const years = selectableTrendYears(points);
-  if (!years.length) return null;
+export function sharedSelectableTrendYears(...series: readonly (readonly TrendPoint[])[]): number[] {
+  if (!series.length) return [];
+  const [first, ...rest] = series.map((points) => new Set(selectableTrendYears(points)));
+  return [...first].filter((year) => rest.every((years) => years.has(year))).sort((a, b) => a - b);
+}
 
-  const yearsAtOrBeforeActive = years.filter((year) => year <= activeYear);
-  const toYear = years.includes(activeYear) ? activeYear : (yearsAtOrBeforeActive.at(-1) ?? years.at(-1)!);
-  const rangeYears = years.filter((year) => year <= toYear);
+export function defaultTrendRangeForYears(years: readonly number[], activeYear: number): TrendRange | null {
+  if (!years.length) return null;
+  const sortedYears = [...new Set(years)].sort((a, b) => a - b);
+  const yearsAtOrBeforeActive = sortedYears.filter((year) => year <= activeYear);
+  const toYear = sortedYears.includes(activeYear) ? activeYear : (yearsAtOrBeforeActive.at(-1) ?? sortedYears.at(-1)!);
+  const rangeYears = sortedYears.filter((year) => year <= toYear);
   const fromYear = rangeYears.filter((year) => year <= toYear - 10).at(-1) ?? rangeYears[0];
   return { fromYear, toYear };
+}
+
+export function defaultTrendRange(points: readonly TrendPoint[], activeYear: number): TrendRange | null {
+  return defaultTrendRangeForYears(selectableTrendYears(points), activeYear);
+}
+
+export function metricDifference(first: number | null, second: number | null): { value: number; percent: number | null } | null {
+  const firstValue = finiteValue(first);
+  const secondValue = finiteValue(second);
+  if (firstValue === null || secondValue === null) return null;
+  const value = firstValue - secondValue;
+  return { value, percent: secondValue === 0 ? null : (value / Math.abs(secondValue)) * 100 };
 }
 
 export function filterTrendRange(points: readonly TrendPoint[], range: TrendRange | null): TrendPoint[] {

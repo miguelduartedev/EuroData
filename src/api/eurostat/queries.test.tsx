@@ -4,7 +4,7 @@ import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { europeSnapshotFixture } from "../../test/fixtures/eurostatJsonStat";
 import { EurostatHttpError } from "./client";
-import { useNuts2MetricSnapshot, useNuts2MetricYears } from "./queries";
+import { useNuts2MetricSnapshot, useNuts2MetricYears, useRegionMetricHistory } from "./queries";
 
 let queryClient: QueryClient;
 
@@ -94,4 +94,15 @@ it("caches available years separately from metric snapshots", async () => {
     years.result.current.data,
   );
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it("caches a selected region's existing metric history by metric and NUTS ID", async () => {
+  const first = renderHook(() => useRegionMetricHistory("FI1B", "gdp_per_capita"), { wrapper });
+  const second = renderHook(() => useRegionMetricHistory("FI1B", "gdp_per_capita"), { wrapper });
+  await waitFor(() => expect(first.result.current.isSuccess && second.result.current.isSuccess).toBe(true));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+  expect(url.searchParams.getAll("geo")).toEqual(["FI1B"]);
+  expect(url.searchParams.has("sinceTimePeriod")).toBe(false);
+  expect(queryClient.getQueryData(["eurostat", "history", "gdp_per_capita", "FI1B"])).toBe(first.result.current.data);
 });

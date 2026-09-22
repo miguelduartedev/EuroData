@@ -3,7 +3,6 @@ import { getEurostatDataset } from "./client";
 import { parseAnnualTimePeriods, parseMetricObservations } from "./parser";
 import type { MetricConfiguration } from "./types";
 
-export const EUROSTAT_START_YEAR = 2015;
 export const EUROSTAT_SNAPSHOT_YEAR = 2023;
 
 export const eurostatMetrics: Record<MetricId, MetricConfiguration> = {
@@ -63,7 +62,6 @@ export async function getMetricHistory(regionIds: string[], metricId: MetricId):
   const dataset = await getEurostatDataset(metric.datasetId, {
     ...metric.filters,
     geo: geographies,
-    sinceTimePeriod: String(EUROSTAT_START_YEAR),
   });
 
   return parseMetricObservations(dataset, { metricId, unit: metric.unit });

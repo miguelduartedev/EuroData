@@ -1,6 +1,6 @@
 import { Building2Icon, UsersRoundIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { countryFlags } from "@/lib/country-flags";
+import { CountryFlag } from "@/components/CountryFlag/CountryFlag";
 import type { Region } from "@/types/region";
 
 interface RegionProfileCardProps {
@@ -29,8 +29,6 @@ function ProfileDetail({ icon: Icon, label }: ProfileDetailProps) {
 }
 
 export function RegionProfileCard({ slotLabel, region, color }: RegionProfileCardProps) {
-  const flag = countryFlags[region.countryCode];
-
   return (
     <Card
       aria-label={`${slotLabel}: ${region.name}`}
@@ -40,7 +38,7 @@ export function RegionProfileCard({ slotLabel, region, color }: RegionProfileCar
       <CardContent className="p-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="size-11 shrink-0 overflow-hidden rounded-full ring-1 ring-border">
-            <img src={flag.src} alt={flag.label} className="size-full object-cover" />
+            <CountryFlag countryCode={region.countryCode} countryName={region.countryName} />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">{slotLabel}</p>

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { changeOverPeriod, defaultTrendRange, filterTrendRange, metricRank, selectableTrendYears, trendPoints } from "./metric-trend";
+import { changeOverPeriod, defaultTrendRange, filterTrendRange, metricDifference, metricRank, selectableTrendYears, sharedSelectableTrendYears, trendPoints } from "./metric-trend";
 import type { Observation } from "../types/metric";
 
 const row = (year: number, value: number | null, regionId = "FI1B"): Observation => ({
@@ -23,6 +23,20 @@ it("derives numeric range endpoints and filters sparse series without filling ga
 
 it("uses the earliest observation when a sparse series has no value near ten years before its end", () => {
   expect(defaultTrendRange([{ year: 2010, value: 10 }, { year: 2023, value: 20 }], 2023)).toEqual({ fromYear: 2010, toYear: 2023 });
+});
+
+it("derives shared endpoints from years where both regions have numeric values", () => {
+  expect(sharedSelectableTrendYears(
+    [{ year: 2013, value: 10 }, { year: 2019, value: null }, { year: 2023, value: 20 }],
+    [{ year: 2013, value: 8 }, { year: 2019, value: 9 }, { year: 2023, value: 12 }],
+  )).toEqual([2013, 2023]);
+});
+
+it("calculates directional current-value differences safely", () => {
+  expect(metricDifference(50000, 25000)).toEqual({ value: 25000, percent: 100 });
+  expect(metricDifference(25000, 50000)).toEqual({ value: -25000, percent: -50 });
+  expect(metricDifference(null, 25000)).toBeNull();
+  expect(metricDifference(10, 0)).toEqual({ value: 10, percent: null });
 });
 
 it("calculates positive and negative change while omitting unsafe periods", () => {

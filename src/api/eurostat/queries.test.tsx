@@ -97,12 +97,23 @@ it("caches available years separately from metric snapshots", async () => {
 });
 
 it("caches a selected region's existing metric history by metric and NUTS ID", async () => {
-  const first = renderHook(() => useRegionMetricHistory("FI1B", "gdp_per_capita"), { wrapper });
-  const second = renderHook(() => useRegionMetricHistory("FI1B", "gdp_per_capita"), { wrapper });
+  const first = renderHook(() => useRegionMetricHistory(["FI1B"], "gdp_per_capita"), { wrapper });
+  const second = renderHook(() => useRegionMetricHistory(["FI1B"], "gdp_per_capita"), { wrapper });
   await waitFor(() => expect(first.result.current.isSuccess && second.result.current.isSuccess).toBe(true));
   expect(fetch).toHaveBeenCalledTimes(1);
   const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]);
   expect(url.searchParams.getAll("geo")).toEqual(["FI1B"]);
   expect(url.searchParams.has("sinceTimePeriod")).toBe(false);
   expect(queryClient.getQueryData(["eurostat", "history", "gdp_per_capita", "FI1B"])).toBe(first.result.current.data);
+});
+
+it("uses one cached history request for two selected regions regardless of selection order", async () => {
+  const first = renderHook(() => useRegionMetricHistory(["PT20", "FI1B"], "gdp_per_capita"), { wrapper });
+  const second = renderHook(() => useRegionMetricHistory(["FI1B", "PT20"], "gdp_per_capita"), { wrapper });
+
+  await waitFor(() => expect(first.result.current.isSuccess && second.result.current.isSuccess).toBe(true));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+  expect(url.searchParams.getAll("geo")).toEqual(["FI1B", "PT20"]);
+  expect(queryClient.getQueryData(["eurostat", "history", "gdp_per_capita", "FI1B", "PT20"])).toBe(first.result.current.data);
 });

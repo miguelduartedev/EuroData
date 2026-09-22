@@ -8,6 +8,7 @@ export interface MetricDefinition {
   label: string;
   unit: string;
   description: string;
+  rankDirection?: "higher" | "lower";
 }
 
 export interface Observation {

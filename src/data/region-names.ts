@@ -1,15 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection, Geometry } from "geojson";
 
-export function buildRegionNames(collection: FeatureCollection<Geometry | null>): ReadonlyMap<string, string> {
-  const names = new Map<string, string>();
+export interface RegionMetadata {
+  id: string;
+  name: string;
+  countryCode?: string;
+  countryName?: string;
+}
+
+function nonEmpty(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+export function buildRegionMetadata(collection: FeatureCollection<Geometry | null>): ReadonlyMap<string, RegionMetadata> {
+  const metadata = new Map<string, RegionMetadata>();
   for (const { properties } of collection.features) {
-    const id = properties?.NUTS_ID;
-    const name = [properties?.NAME_LATN, properties?.NUTS_NAME]
-      .find((value) => typeof value === "string" && value.trim());
-    if (typeof id === "string" && name) names.set(id, name);
+    const id = nonEmpty(properties?.NUTS_ID);
+    if (!id) continue;
+    metadata.set(id, {
+      id,
+      name: nonEmpty(properties?.NAME_LATN) ?? nonEmpty(properties?.NUTS_NAME) ?? id,
+      countryCode: nonEmpty(properties?.CNTR_CODE),
+      countryName: nonEmpty(properties?.NAME_ENGL),
+    });
   }
-  return names;
+  return metadata;
 }
 
 export function regionDisplayName(id: string, names: ReadonlyMap<string, string>): string {
@@ -17,13 +32,13 @@ export function regionDisplayName(id: string, names: ReadonlyMap<string, string>
   return name && name !== id ? `${name} (${id})` : id;
 }
 
-export function useRegionNames() {
+export function useRegionMetadata() {
   return useQuery({
-    queryKey: ["gisco", "nuts2", "2024", "names"],
+    queryKey: ["gisco", "nuts2", "2024", "metadata"],
     queryFn: async ({ signal }) => {
       const response = await fetch(`${import.meta.env.BASE_URL}data/europe-nuts-2-2024.geojson`, { signal });
       if (!response.ok) throw new Error("Unable to load GISCO region names.");
-      return buildRegionNames(await response.json());
+      return buildRegionMetadata(await response.json());
     },
     staleTime: Infinity,
   });

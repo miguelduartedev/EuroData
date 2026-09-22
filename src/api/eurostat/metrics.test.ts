@@ -6,7 +6,6 @@ import {
   getEurostatDataset,
 } from "./client";
 import {
-  EUROSTAT_START_YEAR,
   eurostatMetrics,
   getMetricHistory,
   getNuts2MetricSnapshot,
@@ -74,7 +73,7 @@ it.each([
   expect(observations.every((observation) => observation.metricId === metricId && observation.unit === unit)).toBe(true);
   expect(requestedUrl.pathname).toContain(eurostatMetrics[metricId].datasetId);
   expect(requestedUrl.searchParams.getAll("geo")).toEqual(["FI1B", "SE11"]);
-  expect(requestedUrl.searchParams.get("sinceTimePeriod")).toBe(String(EUROSTAT_START_YEAR));
+  expect(requestedUrl.searchParams.has("sinceTimePeriod")).toBe(false);
   Object.entries(eurostatMetrics[metricId].filters).forEach(([key, value]) => {
     expect(requestedUrl.searchParams.get(key)).toBe(value);
   });

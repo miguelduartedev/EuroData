@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useNuts2MetricSnapshot, useNuts2MetricYears } from "./api/eurostat/queries"
+import { useNuts2MetricSnapshot, useNuts2MetricYears, useRegionMetricHistory } from "./api/eurostat/queries"
 import { EUROSTAT_SNAPSHOT_YEAR } from "./api/eurostat/metrics"
 import { metrics } from "./data/metrics"
 import { gdpChoroplethScale } from "./data/map-metric"
@@ -9,12 +9,14 @@ import { MetricOverview } from "./components/MetricOverview/MetricOverview"
 import { MapGuidance } from "./components/MapGuidance/MapGuidance"
 import { NordicMap } from "./components/NordicMap/NordicMap"
 import { summarizeMetric } from "./lib/metric-summary"
-import { useRegionNames } from "./data/region-names"
+import { useRegionMetadata } from "./data/region-names"
+import { SelectedRegionDetails } from "./components/SelectedRegionDetails/SelectedRegionDetails"
 import { RegionProfileRow } from "./components/RegionProfileCard/RegionProfileCard"
 import { ThemeToggle } from "./components/ThemeToggle/ThemeToggle"
 import { regions } from "./data/regions"
 import { REGION_A_COLOR, REGION_B_COLOR } from "./lib/region-colors"
 import { selectMapRegion, type RegionSelections } from "./lib/region-selection"
+import { metricRank, trendPoints } from "./lib/metric-trend"
 import type { MetricId } from "./types/metric"
 import "./App.css"
 
@@ -25,14 +27,17 @@ const initialRegionSelections: RegionSelections = {
 
 const mapMetricIds: readonly MetricId[] = ["gdp_per_capita"]
 const mapMetrics = metrics.filter((metric) => mapMetricIds.includes(metric.id))
-const emptyRegionNames: ReadonlyMap<string, string> = new Map()
 
 export function App() {
   const [metricId, setMetricId] = useState<MetricId>("gdp_per_capita")
   const [selectedYear, setSelectedYear] = useState(EUROSTAT_SNAPSHOT_YEAR)
   const metricYears = useNuts2MetricYears(metricId)
   const snapshot = useNuts2MetricSnapshot(metricId, selectedYear)
-  const regionNames = useRegionNames()
+  const regionMetadata = useRegionMetadata()
+  const regionNames = useMemo(
+    () => new Map([...regionMetadata.data ?? []].map(([id, region]) => [id, region.name])),
+    [regionMetadata.data],
+  )
   const summary = useMemo(
     () => summarizeMetric(snapshot.data ?? [], metricId, selectedYear),
     [snapshot.data, metricId, selectedYear],
@@ -55,6 +60,18 @@ export function App() {
   )
   const regionB = regions.find(
     (region) => region.id === regionSelections.regionBId,
+  )
+  const selectedIds = [regionSelections.regionAId, regionSelections.regionBId]
+    .filter((id): id is string => id !== undefined)
+  const singleRegionId = selectedIds.length === 1 ? selectedIds[0] : undefined
+  const history = useRegionMetricHistory(singleRegionId, metricId)
+  const selectedTrend = useMemo(
+    () => singleRegionId ? trendPoints(history.data ?? [], singleRegionId, metricId) : [],
+    [history.data, metricId, singleRegionId],
+  )
+  const selectedRank = useMemo(
+    () => singleRegionId ? metricRank(snapshot.data ?? [], metricId, selectedYear, singleRegionId, selectedMetric.rankDirection) : null,
+    [metricId, selectedMetric.rankDirection, selectedYear, singleRegionId, snapshot.data],
   )
 
   const handleMapRegionClick = (regionId: string) => {
@@ -120,22 +137,35 @@ export function App() {
             />
           </section>
           <aside className="grid min-w-0 content-start gap-4 p-[clamp(20px,3vw,36px)]">
-            <RegionProfileRow
+            {selectedIds.length === 2 && <RegionProfileRow
               regionA={regionA}
               regionB={regionB}
               regionAColor={REGION_A_COLOR}
               regionBColor={REGION_B_COLOR}
-            />
+            />}
             <MetricOverview
               metric={selectedMetric}
               year={selectedYear}
               summary={summary}
-              regionNames={regionNames.data ?? emptyRegionNames}
+              regionNames={regionNames}
               isLoading={snapshot.isPending}
               isError={snapshot.isError}
               hasData={snapshot.data !== undefined}
             />
-            <MapGuidance />
+            {singleRegionId ? <SelectedRegionDetails
+              region={regionMetadata.data?.get(singleRegionId) ?? { id: singleRegionId, name: singleRegionId }}
+              metric={selectedMetric}
+              year={selectedYear}
+              value={metricValues.get(singleRegionId) ?? null}
+              isLoading={snapshot.isPending}
+              isError={snapshot.isError}
+              hasData={snapshot.data !== undefined}
+              trend={selectedTrend}
+              rank={selectedRank}
+              isHistoryLoading={history.isPending}
+              isHistoryError={history.isError}
+              hasHistoryData={history.data !== undefined}
+            /> : <MapGuidance />}
           </aside>
         </div>
       </div>

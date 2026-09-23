@@ -65,6 +65,11 @@ it("replaces region selectors with map controls while preserving map click selec
   expect(screen.getByRole("combobox", { name: "Metric" })).toHaveValue("GDP per capita (PPS)");
   expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2024");
   expect(screen.getByRole("combobox", { name: "Region level" })).toBeDisabled();
+  expect(screen.getByRole("link", { name: "Visit Miguel Duarte's portfolio" })).toHaveAttribute(
+    "href", "https://miguelduartedev.github.io/portfolio/",
+  );
+  expect(screen.getByRole("link", { name: "Visit Miguel Duarte's portfolio" })).toHaveAttribute("target", "_blank");
+  expect(screen.getByRole("link", { name: "Visit Miguel Duarte's portfolio" })).toHaveAttribute("rel", "noopener noreferrer");
   expect(screen.getByRole("heading", { name: "Explore this metric" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Explore the map" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Regional distribution" })).toBeInTheDocument();

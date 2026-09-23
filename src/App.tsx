@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { ExternalLinkIcon } from "lucide-react"
 import { useNuts2MetricSnapshot, useNuts2MetricYears, useRegionMetricHistory } from "./api/eurostat/queries"
 import { EUROSTAT_SNAPSHOT_YEAR } from "./api/eurostat/metrics"
 import { getMetricDefinition, metrics } from "./data/metrics"
@@ -118,7 +119,20 @@ export function App() {
                 </p>
               </div>
             </div>
-            <ThemeToggle />
+            <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+              <a
+                href="https://miguelduartedev.github.io/portfolio/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Visit Miguel Duarte's portfolio"
+                className="group flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-blue-600 dark:hover:text-blue-400"
+              >
+                <span className="hidden md:inline">Built by</span>
+                <span className="hidden font-medium sm:inline">Miguel Duarte</span>
+                <ExternalLinkIcon aria-hidden="true" className="size-3.5" strokeWidth={1.7} />
+              </a>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { ExternalLinkIcon } from "lucide-react"
-import { useNuts2MetricSnapshot, useNuts2MetricYears, useRegionMetricHistory } from "./api/eurostat/queries"
+import {
+  useNuts2MetricSnapshot,
+  useNuts2MetricYears,
+  useRegionMetricHistory,
+} from "./api/eurostat/queries"
 import { EUROSTAT_SNAPSHOT_YEAR } from "./api/eurostat/metrics"
 import { getMetricDefinition, metrics } from "./data/metrics"
 import { availableMetricYear } from "./lib/metric-year"
@@ -17,7 +21,10 @@ import { ThemeToggle } from "./components/ThemeToggle/ThemeToggle"
 import { REGION_A_COLOR, REGION_B_COLOR } from "./lib/region-colors"
 import { selectMapRegion, type RegionSelections } from "./lib/region-selection"
 import { metricRank, trendPoints } from "./lib/metric-trend"
-import { mapComparableRegionValues, metricDistribution } from "./lib/metric-exploration"
+import {
+  mapComparableRegionValues,
+  metricDistribution,
+} from "./lib/metric-exploration"
 import type { MetricId } from "./types/metric"
 import { RegionalDistribution } from "./components/RegionalDistribution/RegionalDistribution"
 import { ExploreRegions } from "./components/ExploreRegions/ExploreRegions"
@@ -31,28 +38,43 @@ const noSelectableRegions = new Set<string>()
 
 export function App() {
   const [metricId, setMetricId] = useState<MetricId>("gdp_per_capita")
-  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined)
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(
+    undefined,
+  )
   const metricYears = useNuts2MetricYears(metricId)
   const year = metricYears.data?.length
     ? availableMetricYear(selectedYear ?? metricYears.data[0], metricYears.data)
-    : selectedYear ?? EUROSTAT_SNAPSHOT_YEAR
-  const snapshot = useNuts2MetricSnapshot(metricId, metricYears.data?.length ? year : null)
+    : (selectedYear ?? EUROSTAT_SNAPSHOT_YEAR)
+  const snapshot = useNuts2MetricSnapshot(
+    metricId,
+    metricYears.data?.length ? year : null,
+  )
   useEffect(() => {
     if (metricYears.data?.length && selectedYear !== year) setSelectedYear(year)
   }, [metricYears.data, selectedYear, year])
   const regionCatalog = useRegionCatalog()
-  const selectableRegionIds = regionCatalog.data?.selectableIds ?? noSelectableRegions
+  const selectableRegionIds =
+    regionCatalog.data?.selectableIds ?? noSelectableRegions
   const regionNames = useMemo(
-    () => new Map([...regionCatalog.data?.metadata ?? []].map(([id, region]) => [id, region.name])),
+    () =>
+      new Map(
+        [...(regionCatalog.data?.metadata ?? [])].map(([id, region]) => [
+          id,
+          region.name,
+        ]),
+      ),
     [regionCatalog.data],
   )
   const summary = useMemo(
-    () => summarizeMetric(snapshot.data ?? [], metricId, year, selectableRegionIds),
+    () =>
+      summarizeMetric(snapshot.data ?? [], metricId, year, selectableRegionIds),
     [snapshot.data, metricId, year, selectableRegionIds],
   )
   const availableYears = useMemo(
-      () => Array.from(new Set([year, ...(metricYears.data ?? [])]))
-      .sort((first, second) => second - first),
+    () =>
+      Array.from(new Set([year, ...(metricYears.data ?? [])])).sort(
+        (first, second) => second - first,
+      ),
     [metricYears.data, year],
   )
   const metricValues = useMemo(
@@ -61,12 +83,27 @@ export function App() {
   )
   const selectedMetric = getMetricDefinition(metricId)
   const comparableMetricValues = useMemo(
-    () => mapComparableRegionValues(snapshot.data ?? [], metricId, year, selectableRegionIds),
+    () =>
+      mapComparableRegionValues(
+        snapshot.data ?? [],
+        metricId,
+        year,
+        selectableRegionIds,
+      ),
     [metricId, selectableRegionIds, snapshot.data, year],
   )
   const distributionBands = useMemo(
-    () => metricDistribution(comparableMetricValues, selectedMetric.choropleth, selectedMetric.valueFormat),
-    [comparableMetricValues, selectedMetric.choropleth, selectedMetric.valueFormat],
+    () =>
+      metricDistribution(
+        comparableMetricValues,
+        selectedMetric.choropleth,
+        selectedMetric.valueFormat,
+      ),
+    [
+      comparableMetricValues,
+      selectedMetric.choropleth,
+      selectedMetric.valueFormat,
+    ],
   )
   const handleMetricChange = (nextMetricId: MetricId) => {
     setMetricId(nextMetricId)
@@ -75,27 +112,89 @@ export function App() {
   const [regionSelections, setRegionSelections] = useState<RegionSelections>(
     initialRegionSelections,
   )
-  const selectedIds = [regionSelections.regionAId, regionSelections.regionBId]
-    .filter((id): id is string => id !== undefined)
+  const selectedIds = [
+    regionSelections.regionAId,
+    regionSelections.regionBId,
+  ].filter((id): id is string => id !== undefined)
   const singleRegionId = selectedIds.length === 1 ? selectedIds[0] : undefined
   const history = useRegionMetricHistory(selectedIds, metricId)
   const selectedTrend = useMemo(
-    () => singleRegionId ? trendPoints(history.data ?? [], singleRegionId, metricId) : [],
+    () =>
+      singleRegionId
+        ? trendPoints(history.data ?? [], singleRegionId, metricId)
+        : [],
     [history.data, metricId, singleRegionId],
   )
   const selectedRank = useMemo(
-    () => singleRegionId ? metricRank(snapshot.data ?? [], metricId, year, singleRegionId, selectedMetric.rankDirection, selectableRegionIds) : null,
-    [metricId, selectedMetric.rankDirection, year, singleRegionId, snapshot.data, selectableRegionIds],
+    () =>
+      singleRegionId
+        ? metricRank(
+            snapshot.data ?? [],
+            metricId,
+            year,
+            singleRegionId,
+            selectedMetric.rankDirection,
+            selectableRegionIds,
+          )
+        : null,
+    [
+      metricId,
+      selectedMetric.rankDirection,
+      year,
+      singleRegionId,
+      snapshot.data,
+      selectableRegionIds,
+    ],
   )
-  const comparisonRegionIds = selectedIds.length === 2 ? selectedIds as [string, string] : undefined
-  const comparisonTrends = useMemo(() => comparisonRegionIds ? [
-    trendPoints(history.data ?? [], comparisonRegionIds[0], metricId),
-    trendPoints(history.data ?? [], comparisonRegionIds[1], metricId),
-  ] as const : undefined, [comparisonRegionIds?.[0], comparisonRegionIds?.[1], history.data, metricId])
-  const comparisonRanks = useMemo(() => comparisonRegionIds ? [
-    metricRank(snapshot.data ?? [], metricId, year, comparisonRegionIds[0], selectedMetric.rankDirection, selectableRegionIds),
-    metricRank(snapshot.data ?? [], metricId, year, comparisonRegionIds[1], selectedMetric.rankDirection, selectableRegionIds),
-  ] as const : undefined, [comparisonRegionIds?.[0], comparisonRegionIds?.[1], metricId, selectedMetric.rankDirection, year, snapshot.data, selectableRegionIds])
+  const comparisonRegionIds =
+    selectedIds.length === 2 ? (selectedIds as [string, string]) : undefined
+  const comparisonTrends = useMemo(
+    () =>
+      comparisonRegionIds
+        ? ([
+            trendPoints(history.data ?? [], comparisonRegionIds[0], metricId),
+            trendPoints(history.data ?? [], comparisonRegionIds[1], metricId),
+          ] as const)
+        : undefined,
+    [
+      comparisonRegionIds?.[0],
+      comparisonRegionIds?.[1],
+      history.data,
+      metricId,
+    ],
+  )
+  const comparisonRanks = useMemo(
+    () =>
+      comparisonRegionIds
+        ? ([
+            metricRank(
+              snapshot.data ?? [],
+              metricId,
+              year,
+              comparisonRegionIds[0],
+              selectedMetric.rankDirection,
+              selectableRegionIds,
+            ),
+            metricRank(
+              snapshot.data ?? [],
+              metricId,
+              year,
+              comparisonRegionIds[1],
+              selectedMetric.rankDirection,
+              selectableRegionIds,
+            ),
+          ] as const)
+        : undefined,
+    [
+      comparisonRegionIds?.[0],
+      comparisonRegionIds?.[1],
+      metricId,
+      selectedMetric.rankDirection,
+      year,
+      snapshot.data,
+      selectableRegionIds,
+    ],
+  )
 
   const handleMapRegionClick = (regionId: string) => {
     setRegionSelections((currentSelections) =>
@@ -109,7 +208,13 @@ export function App() {
         <header className="border-b border-border bg-card px-[clamp(20px,3vw,36px)] py-3">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-              <img src="/favicon.svg" alt="" width={48} height={48} className="size-12 shrink-0" />
+              <img
+                src="/favicon.svg"
+                alt=""
+                width={48}
+                height={48}
+                className="size-12 shrink-0"
+              />
               <div className="min-w-0">
                 <h1 className="m-0 text-[22px] leading-7 font-semibold tracking-[-0.04em] text-foreground">
                   EuroData
@@ -128,8 +233,14 @@ export function App() {
                 className="group flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-blue-600 dark:hover:text-blue-400"
               >
                 <span className="hidden md:inline">Built by</span>
-                <span className="hidden font-medium sm:inline">Miguel Duarte</span>
-                <ExternalLinkIcon aria-hidden="true" className="size-3.5" strokeWidth={1.7} />
+                <span className="hidden font-medium sm:inline">
+                  Miguel Duarte
+                </span>
+                <ExternalLinkIcon
+                  aria-hidden="true"
+                  className="size-3.5"
+                  strokeWidth={1.7}
+                />
               </a>
               <ThemeToggle />
             </div>
@@ -174,81 +285,108 @@ export function App() {
             />
           </section>
           <aside className="grid min-w-0 content-start gap-4 p-[clamp(20px,3vw,36px)] lg:h-full lg:min-h-0 lg:auto-rows-max lg:overflow-y-auto">
-            {comparisonRegionIds && comparisonTrends && comparisonRanks ? <RegionComparison
-              metric={selectedMetric}
-              year={year}
-              regions={[
-                {
-                  slot: "Region A",
-                  metadata: regionCatalog.data?.metadata.get(comparisonRegionIds[0]) ?? { id: comparisonRegionIds[0], name: comparisonRegionIds[0] },
-                  color: REGION_A_COLOR,
-                  value: metricValues.get(comparisonRegionIds[0]) ?? null,
-                  rank: comparisonRanks[0],
-                  trend: comparisonTrends[0],
-                },
-                {
-                  slot: "Region B",
-                  metadata: regionCatalog.data?.metadata.get(comparisonRegionIds[1]) ?? { id: comparisonRegionIds[1], name: comparisonRegionIds[1] },
-                  color: REGION_B_COLOR,
-                  value: metricValues.get(comparisonRegionIds[1]) ?? null,
-                  rank: comparisonRanks[1],
-                  trend: comparisonTrends[1],
-                },
-              ]}
-              isSnapshotLoading={snapshot.isPending}
-              isSnapshotError={snapshot.isError}
-              hasSnapshotData={snapshot.data !== undefined}
-              isHistoryLoading={history.isPending}
-              isHistoryError={history.isError}
-              hasHistoryData={history.data !== undefined}
-              onClear={() => setRegionSelections(initialRegionSelections)}
-            /> : <>
-              <MetricOverview
+            {comparisonRegionIds && comparisonTrends && comparisonRanks ? (
+              <RegionComparison
                 metric={selectedMetric}
                 year={year}
-                summary={summary}
-                regionNames={regionNames}
-                isLoading={snapshot.isPending}
-                isError={snapshot.isError}
-                hasData={snapshot.data !== undefined}
-              />
-              {singleRegionId ? <SelectedRegionDetails
-                region={regionCatalog.data?.metadata.get(singleRegionId) ?? { id: singleRegionId, name: singleRegionId }}
-                metric={selectedMetric}
-                year={year}
-                value={metricValues.get(singleRegionId) ?? null}
-                color={regionSelections.regionAId === singleRegionId ? REGION_A_COLOR : REGION_B_COLOR}
-                isLoading={snapshot.isPending}
-                isError={snapshot.isError}
-                hasData={snapshot.data !== undefined}
-                trend={selectedTrend}
-                rank={selectedRank}
+                regions={[
+                  {
+                    slot: "Region A",
+                    metadata: regionCatalog.data?.metadata.get(
+                      comparisonRegionIds[0],
+                    ) ?? {
+                      id: comparisonRegionIds[0],
+                      name: comparisonRegionIds[0],
+                    },
+                    color: REGION_A_COLOR,
+                    value: metricValues.get(comparisonRegionIds[0]) ?? null,
+                    rank: comparisonRanks[0],
+                    trend: comparisonTrends[0],
+                  },
+                  {
+                    slot: "Region B",
+                    metadata: regionCatalog.data?.metadata.get(
+                      comparisonRegionIds[1],
+                    ) ?? {
+                      id: comparisonRegionIds[1],
+                      name: comparisonRegionIds[1],
+                    },
+                    color: REGION_B_COLOR,
+                    value: metricValues.get(comparisonRegionIds[1]) ?? null,
+                    rank: comparisonRanks[1],
+                    trend: comparisonTrends[1],
+                  },
+                ]}
+                isSnapshotLoading={snapshot.isPending}
+                isSnapshotError={snapshot.isError}
+                hasSnapshotData={snapshot.data !== undefined}
                 isHistoryLoading={history.isPending}
                 isHistoryError={history.isError}
                 hasHistoryData={history.data !== undefined}
-              /> : <>
-                <MapGuidance />
-                <RegionalDistribution
+                onClear={() => setRegionSelections(initialRegionSelections)}
+              />
+            ) : (
+              <>
+                <MetricOverview
                   metric={selectedMetric}
                   year={year}
-                  bands={distributionBands}
-                  total={comparableMetricValues.length}
+                  summary={summary}
+                  regionNames={regionNames}
                   isLoading={snapshot.isPending}
                   isError={snapshot.isError}
                   hasData={snapshot.data !== undefined}
                 />
-                <ExploreRegions
-                  metric={selectedMetric}
-                  year={year}
-                  values={comparableMetricValues}
-                  metadata={regionCatalog.data?.metadata ?? new Map()}
-                  onRegionClick={handleMapRegionClick}
-                  isLoading={snapshot.isPending}
-                  isError={snapshot.isError}
-                  hasData={snapshot.data !== undefined}
-                />
-              </>}
-            </>}
+                {singleRegionId ? (
+                  <SelectedRegionDetails
+                    region={
+                      regionCatalog.data?.metadata.get(singleRegionId) ?? {
+                        id: singleRegionId,
+                        name: singleRegionId,
+                      }
+                    }
+                    metric={selectedMetric}
+                    year={year}
+                    value={metricValues.get(singleRegionId) ?? null}
+                    color={
+                      regionSelections.regionAId === singleRegionId
+                        ? REGION_A_COLOR
+                        : REGION_B_COLOR
+                    }
+                    isLoading={snapshot.isPending}
+                    isError={snapshot.isError}
+                    hasData={snapshot.data !== undefined}
+                    trend={selectedTrend}
+                    rank={selectedRank}
+                    isHistoryLoading={history.isPending}
+                    isHistoryError={history.isError}
+                    hasHistoryData={history.data !== undefined}
+                  />
+                ) : (
+                  <>
+                    <MapGuidance />
+                    <RegionalDistribution
+                      metric={selectedMetric}
+                      year={year}
+                      bands={distributionBands}
+                      total={comparableMetricValues.length}
+                      isLoading={snapshot.isPending}
+                      isError={snapshot.isError}
+                      hasData={snapshot.data !== undefined}
+                    />
+                    <ExploreRegions
+                      metric={selectedMetric}
+                      year={year}
+                      values={comparableMetricValues}
+                      metadata={regionCatalog.data?.metadata ?? new Map()}
+                      onRegionClick={handleMapRegionClick}
+                      isLoading={snapshot.isPending}
+                      isError={snapshot.isError}
+                      hasData={snapshot.data !== undefined}
+                    />
+                  </>
+                )}
+              </>
+            )}
           </aside>
         </div>
       </div>

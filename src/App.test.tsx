@@ -66,8 +66,10 @@ it("replaces region selectors with map controls while preserving map click selec
   expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2024");
   expect(screen.getByRole("combobox", { name: "Region level" })).toBeDisabled();
   expect(screen.getByRole("heading", { name: "Explore this metric" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Click a region to see details" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Compare regions" })).toBeDisabled();
+  expect(screen.getByRole("heading", { name: "Explore the map" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Regional distribution" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Explore regions" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Compare regions" })).not.toBeInTheDocument();
   expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
   expect(screen.queryByText("Historical trend")).not.toBeInTheDocument();
   expect(screen.queryByRole("combobox", { name: "Region A" })).not.toBeInTheDocument();
@@ -80,6 +82,20 @@ it("replaces region selectors with map controls while preserving map click selec
   expect(screen.getByLabelText("Region A: Helsinki-Uusimaa")).toBeInTheDocument();
   expect(screen.getByLabelText("Region B: Stockholm")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Explore this metric" })).not.toBeInTheDocument();
+});
+
+it("selects a region through the default exploration list using the map selection flow", () => {
+  snapshotMock.mockReturnValue({ data: [
+    { regionId: "FI1B", metricId: "gdp_per_capita", year: 2024, value: 50_000, unit: "PPS per inhabitant" },
+    { regionId: "PT20", metricId: "gdp_per_capita", year: 2024, value: 20_000, unit: "PPS per inhabitant" },
+  ], isPending: false, isError: false });
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("button", { name: /Helsinki-Uusimaa/ }));
+  expect(screen.getByTestId("map-selection")).toHaveTextContent("FI1B|");
+  expect(screen.getByRole("region", { name: "Helsinki-Uusimaa" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Regional distribution" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Explore regions" })).not.toBeInTheDocument();
 });
 
 it("uses selected years for the GDP snapshot and map metadata", () => {
@@ -177,7 +193,7 @@ it("shows generic single-region details from the snapshot and restores guidance 
   expect(card.getByText("29,200")).toBeInTheDocument();
   expect(card.getByText("PPS per inhabitant · 2024")).toBeInTheDocument();
   expect(screen.getAllByText("Região Autónoma dos Açores (PT20)")).toHaveLength(2);
-  expect(screen.queryByText("Click a region to see details")).not.toBeInTheDocument();
+  expect(screen.queryByText("Explore the map")).not.toBeInTheDocument();
   expect(screen.queryByText("Population")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Show Year options" }));
   fireEvent.change(screen.getByRole("combobox", { name: "Year" }), { target: { value: "2024" } });
@@ -186,7 +202,7 @@ it("shows generic single-region details from the snapshot and restores guidance 
   expect(card.getByText("29,200")).toBeInTheDocument();
   expect(card.getByText("PPS per inhabitant · 2024")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Click PT20" }));
-  expect(screen.getByText("Click a region to see details")).toBeInTheDocument();
+  expect(screen.getByText("Explore the map")).toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Região Autónoma dos Açores" })).not.toBeInTheDocument();
 });
 
@@ -218,7 +234,7 @@ it("switches the default map and overview to EUR and reconciles an unavailable y
   expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2022");
   expect(screen.getByTestId("map-metric")).toHaveTextContent("GDP per capita (EUR)|2022|42000");
   expect(screen.getByRole("heading", { name: "Explore this metric" })).toBeInTheDocument();
-  expect(screen.getAllByText("€42,000")).toHaveLength(3);
+  expect(screen.getAllByText("€42,000")).toHaveLength(4);
 });
 
 it("keeps two selected regions while switching to unemployment and updates history, ranks and difference", () => {

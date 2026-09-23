@@ -7,8 +7,11 @@ export interface MetricDefinition {
   id: MetricId;
   label: string;
   description: string;
-  category: "Economy" | "Labour";
+  category: "Economy" | "Labour" | "Demographics";
   eurostat: { datasetId: string; filters: Record<string, string> };
+  derivation?: "annualPercentChange";
+  sourceMetricId?: MetricId;
+  sourceUnit?: string;
   unit: string;
   valueFormat: "number" | "euro" | "percent";
   rankDirection: "higher" | "lower";

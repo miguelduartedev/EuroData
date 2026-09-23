@@ -24,6 +24,9 @@ Current datasets:
 | GDP per capita (EUR) | `nama_10r_2gdp` |
 | Unemployment rate | `lfst_r_lfu3rt`   |
 | Real GDP growth | `nama_10r_2gvagr` |
+| Employment rate | `lfst_r_lfe2emprt` |
+| Population | `demo_r_d2jan` |
+| Population growth | Derived from `demo_r_d2jan` |
 
 Different indicators may have different latest available years.
 

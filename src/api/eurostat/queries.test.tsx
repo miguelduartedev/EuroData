@@ -117,3 +117,28 @@ it("uses one cached history request for two selected regions regardless of selec
   expect(url.searchParams.getAll("geo")).toEqual(["FI1B", "PT20"]);
   expect(queryClient.getQueryData(["eurostat", "history", "gdp_per_capita", "FI1B", "PT20"])).toBe(first.result.current.data);
 });
+
+it("reuses cached population history when deriving population growth", async () => {
+  const dataset = {
+    id: ["time", "geo", "freq", "unit"],
+    size: [2, 1, 1, 1],
+    dimension: {
+      time: { category: { index: { "2023": 0, "2024": 1 } } },
+      geo: { category: { index: { FI1B: 0 } } },
+      freq: { category: { index: { A: 0 } } },
+      unit: { category: { index: { NR: 0 } } },
+    },
+    value: { "0": 1_000, "1": 1_050 },
+  };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => dataset }));
+
+  const population = renderHook(() => useRegionMetricHistory(["FI1B"], "population"), { wrapper });
+  await waitFor(() => expect(population.result.current.isSuccess).toBe(true));
+  const growth = renderHook(() => useRegionMetricHistory(["FI1B"], "population_growth"), { wrapper });
+  await waitFor(() => expect(growth.result.current.isSuccess).toBe(true));
+
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(population.result.current.data?.at(-1)).toMatchObject({ metricId: "population", year: 2024, value: 1_050, unit: "people" });
+  expect(growth.result.current.data?.at(-1)).toMatchObject({ metricId: "population_growth", year: 2024, value: 5, unit: "% change on previous year" });
+  expect(queryClient.getQueryData(["eurostat", "history", "population", "FI1B"])).toBe(population.result.current.data);
+});

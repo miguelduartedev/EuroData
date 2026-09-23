@@ -16,7 +16,10 @@ import { ThemeToggle } from "./components/ThemeToggle/ThemeToggle"
 import { REGION_A_COLOR, REGION_B_COLOR } from "./lib/region-colors"
 import { selectMapRegion, type RegionSelections } from "./lib/region-selection"
 import { metricRank, trendPoints } from "./lib/metric-trend"
+import { mapComparableRegionValues, metricDistribution } from "./lib/metric-exploration"
 import type { MetricId } from "./types/metric"
+import { RegionalDistribution } from "./components/RegionalDistribution/RegionalDistribution"
+import { ExploreRegions } from "./components/ExploreRegions/ExploreRegions"
 import "./App.css"
 
 const initialRegionSelections: RegionSelections = {
@@ -56,6 +59,14 @@ export function App() {
     [metricId, year, snapshot.data],
   )
   const selectedMetric = getMetricDefinition(metricId)
+  const comparableMetricValues = useMemo(
+    () => mapComparableRegionValues(snapshot.data ?? [], metricId, year, selectableRegionIds),
+    [metricId, selectableRegionIds, snapshot.data, year],
+  )
+  const distributionBands = useMemo(
+    () => metricDistribution(comparableMetricValues, selectedMetric.choropleth, selectedMetric.valueFormat),
+    [comparableMetricValues, selectedMetric.choropleth, selectedMetric.valueFormat],
+  )
   const handleMetricChange = (nextMetricId: MetricId) => {
     setMetricId(nextMetricId)
     setSelectedYear(undefined)
@@ -201,7 +212,28 @@ export function App() {
                 isHistoryLoading={history.isPending}
                 isHistoryError={history.isError}
                 hasHistoryData={history.data !== undefined}
-              /> : <MapGuidance />}
+              /> : <>
+                <MapGuidance />
+                <RegionalDistribution
+                  metric={selectedMetric}
+                  year={year}
+                  bands={distributionBands}
+                  total={comparableMetricValues.length}
+                  isLoading={snapshot.isPending}
+                  isError={snapshot.isError}
+                  hasData={snapshot.data !== undefined}
+                />
+                <ExploreRegions
+                  metric={selectedMetric}
+                  year={year}
+                  values={comparableMetricValues}
+                  metadata={regionCatalog.data?.metadata ?? new Map()}
+                  onRegionClick={handleMapRegionClick}
+                  isLoading={snapshot.isPending}
+                  isError={snapshot.isError}
+                  hasData={snapshot.data !== undefined}
+                />
+              </>}
             </>}
           </aside>
         </div>

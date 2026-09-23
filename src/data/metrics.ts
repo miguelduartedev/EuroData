@@ -4,8 +4,11 @@ import type { MetricDefinition, MetricId } from "../types/metric";
 interface MetricConfiguration {
   label: string;
   description: string;
-  category: "Economy" | "Labour";
+  category: "Economy" | "Labour" | "Demographics";
   eurostat: { datasetId: string; filters: Record<string, string> };
+  derivation?: "annualPercentChange";
+  sourceMetricId?: "population";
+  sourceUnit?: string;
   unit: string;
   valueFormat: "number" | "euro" | "percent";
   rankDirection: "higher" | "lower";
@@ -92,6 +95,51 @@ export const metricRegistry = {
     choropleth: {
       thresholds: [3, 5, 7, 10, 15],
       colors: EUROSTAT_BLUE_TO_ORANGE_6,
+    },
+  },
+  employment_rate: {
+    label: "Employment rate",
+    description: "Share of people aged 20–64 who are employed.",
+    category: "Labour",
+    eurostat: { datasetId: "lfst_r_lfe2emprt", filters: { freq: "A", sex: "T", age: "Y20-64", unit: "PC" } },
+    unit: "% of population aged 20–64",
+    valueFormat: "percent",
+    rankDirection: "higher",
+    periodChange: "percentagePoints",
+    choropleth: {
+      thresholds: [60, 70, 75, 80, 84],
+      colors: EUROSTAT_ORANGE_BLUE_6,
+    },
+  },
+  population: {
+    label: "Population",
+    description: "Population on 1 January.",
+    category: "Demographics",
+    eurostat: { datasetId: "demo_r_d2jan", filters: { freq: "A", sex: "T", age: "TOTAL", unit: "NR" } },
+    unit: "people",
+    valueFormat: "number",
+    rankDirection: "higher",
+    periodChange: "relative",
+    choropleth: {
+      thresholds: [500_000, 900_000, 1_500_000, 2_500_000, 4_000_000],
+      colors: EUROSTAT_ORANGE_BLUE_6,
+    },
+  },
+  population_growth: {
+    label: "Population growth",
+    description: "Annual percentage change in population on 1 January.",
+    category: "Demographics",
+    eurostat: { datasetId: "demo_r_d2jan", filters: { freq: "A", sex: "T", age: "TOTAL", unit: "NR" } },
+    derivation: "annualPercentChange",
+    sourceMetricId: "population",
+    sourceUnit: "people",
+    unit: "% change on previous year",
+    valueFormat: "percent",
+    rankDirection: "higher",
+    periodChange: "percentagePoints",
+    choropleth: {
+      thresholds: [-1, -0.25, 0, 0.25, 1],
+      colors: EUROSTAT_ORANGE_BLUE_6,
     },
   },
 } as const satisfies Record<string, MetricConfiguration>;

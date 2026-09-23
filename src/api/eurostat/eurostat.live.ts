@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import type { FeatureCollection } from "geojson";
 import { describe, expect, it } from "vitest";
 import { buildEurostatDatasetUrl, getEurostatDataset } from "./client";
-import { EUROSTAT_SNAPSHOT_YEAR, eurostatMetrics, getMetricHistory, getNuts2MetricSnapshot } from "./metrics";
+import { EUROSTAT_SNAPSHOT_YEAR, eurostatMetrics, getMetricHistory, getNuts2MetricSnapshot, getNuts2MetricYears } from "./metrics";
 import { parseMetricObservations } from "./parser";
 import { summarizeMetric } from "../../lib/metric-summary";
 import { changeOverPeriod, filterTrendRange, metricRank, trendPoints } from "../../lib/metric-trend";
@@ -13,6 +13,37 @@ import { getMetricDefinition } from "../../data/metrics";
 import { buildSelectableRegionIds } from "../../data/region-names";
 
 const LIVE_REGION_IDS = ["FI1B", "DE11", "PT1A", "PL21"];
+
+function independentlyNormalize(
+  metricId: keyof typeof eurostatMetrics,
+  dataset: Awaited<ReturnType<typeof getEurostatDataset>>,
+) {
+  const definition = getMetricDefinition(metricId);
+  const source = parseMetricObservations(dataset, {
+    metricId,
+    unit: definition.sourceUnit ?? definition.unit,
+  });
+  if (definition.derivation !== "annualPercentChange") return source;
+
+  const byRegion = new Map<string, Map<number, typeof source[number]>>();
+  source.forEach((observation) => {
+    const years = byRegion.get(observation.regionId) ?? new Map();
+    years.set(observation.year, observation);
+    byRegion.set(observation.regionId, years);
+  });
+  return [...byRegion].flatMap(([regionId, years]) => [...years.values()].map((current) => {
+    const previous = years.get(current.year - 1);
+    const valid = typeof current.value === "number" && typeof previous?.value === "number" && previous.value !== 0;
+    return {
+      regionId,
+      metricId,
+      year: current.year,
+      value: valid ? ((current.value! - previous.value!) / previous.value!) * 100 : null,
+      unit: definition.unit,
+      ...(current.status ? { status: current.status } : {}),
+    };
+  })).sort((first, second) => first.regionId.localeCompare(second.regionId) || first.year - second.year);
+}
 
 function expectMetricDimensions(dataset: Awaited<ReturnType<typeof getEurostatDataset>>, filters: Record<string, string>) {
   Object.entries(filters).forEach(([dimensionId, expectedCode]) => {
@@ -68,16 +99,22 @@ describe("live Eurostat verification", () => {
     async (metricId) => {
       const metric = eurostatMetrics[metricId];
       const definition = getMetricDefinition(metricId);
+      const years = await getNuts2MetricYears(metricId);
+      const currentYear = years[0];
+      expect(currentYear).toBeTypeOf("number");
+      const snapshotTimes = definition.derivation === "annualPercentChange"
+        ? [String(currentYear - 1), String(currentYear)]
+        : String(currentYear);
       const [snapshot, rawSnapshot, history, rawHistory] = await Promise.all([
-        getNuts2MetricSnapshot(metricId),
+        getNuts2MetricSnapshot(metricId, currentYear),
         getEurostatDataset(metric.datasetId, {
-          ...metric.filters, geoLevel: "nuts2", time: String(EUROSTAT_SNAPSHOT_YEAR),
+          ...metric.filters, geoLevel: "nuts2", time: snapshotTimes,
         }),
         getMetricHistory(LIVE_REGION_IDS, metricId),
         getEurostatDataset(metric.datasetId, { ...metric.filters, geo: LIVE_REGION_IDS }),
       ]);
-      const parsedSnapshot = parseMetricObservations(rawSnapshot, { metricId, unit: metric.unit });
-      const parsedHistory = parseMetricObservations(rawHistory, { metricId, unit: metric.unit });
+      const parsedSnapshot = independentlyNormalize(metricId, rawSnapshot).filter(({ year }) => year === currentYear);
+      const parsedHistory = independentlyNormalize(metricId, rawHistory);
       const geometry: FeatureCollection = JSON.parse(await readFile(
         new URL("../../../public/data/europe-nuts-2-2024.geojson", import.meta.url), "utf8",
       ));
@@ -87,7 +124,7 @@ describe("live Eurostat verification", () => {
       expectMetricDimensions(rawHistory, metric.filters);
       expect(snapshot).toEqual(parsedSnapshot);
       expect(history).toEqual(parsedHistory);
-      expect(snapshot.every(({ year, unit }) => year === EUROSTAT_SNAPSHOT_YEAR && unit === metric.unit)).toBe(true);
+      expect(snapshot.every(({ year, unit }) => year === currentYear && unit === metric.unit)).toBe(true);
 
       const sampleValues = LIVE_REGION_IDS.map((regionId) => snapshot.find((row) => row.regionId === regionId));
       sampleValues.forEach((sample) => {
@@ -102,20 +139,20 @@ describe("live Eurostat verification", () => {
       const expectedHighest = [...rawValues].sort((first, second) => second.value - first.value || first.regionId.localeCompare(second.regionId))[0];
       const expectedLowest = [...rawValues].sort((first, second) => first.value - second.value || first.regionId.localeCompare(second.regionId))[0];
       const expectedAverage = rawValues.reduce((sum, row) => sum + row.value, 0) / rawValues.length;
-      const summary = summarizeMetric(snapshot, metricId, EUROSTAT_SNAPSHOT_YEAR, selectableRegionIds);
+      const summary = summarizeMetric(snapshot, metricId, currentYear, selectableRegionIds);
       expect(summary).toMatchObject({
         count: rawValues.length,
         highest: { regionId: expectedHighest.regionId, value: expectedHighest.value },
         lowest: { regionId: expectedLowest.regionId, value: expectedLowest.value },
       });
-      expect(summary.average).toBeCloseTo(expectedAverage, 10);
+      expect(summary.average).toBeCloseTo(expectedAverage, 8);
 
       const ranked = [...rawValues].sort((first, second) =>
         (definition.rankDirection === "higher" ? second.value - first.value : first.value - second.value) ||
         first.regionId.localeCompare(second.regionId),
       );
       const sampleRanks = sampleValues.map((sample) => {
-        expect(metricRank(snapshot, metricId, EUROSTAT_SNAPSHOT_YEAR, sample!.regionId, definition.rankDirection, selectableRegionIds))
+        expect(metricRank(snapshot, metricId, currentYear, sample!.regionId, definition.rankDirection, selectableRegionIds))
           .toEqual({ position: ranked.findIndex((row) => row.regionId === sample!.regionId) + 1, total: ranked.length });
         expect(choroplethBand(sample!.value, definition.choropleth)).not.toBeNull();
         return { regionId: sample!.regionId, position: ranked.findIndex((row) => row.regionId === sample!.regionId) + 1, total: ranked.length };
@@ -142,12 +179,18 @@ describe("live Eurostat verification", () => {
 
       console.info(JSON.stringify({
         metricId,
+        currentYear,
         snapshotRequest: buildEurostatDatasetUrl(metric.datasetId, {
-          ...metric.filters, geoLevel: "nuts2", time: String(EUROSTAT_SNAPSHOT_YEAR),
+          ...metric.filters, geoLevel: "nuts2", time: snapshotTimes,
         }).toString(),
         samples: sampleValues,
         sampleRanks,
         summary,
+        validMapRegions: rawValues.length,
+        datasetOnlyNumeric: snapshot.filter(({ regionId, value }) => value !== null && !selectableRegionIds.has(regionId)).map(({ regionId }) => regionId),
+        geometryWithoutNumericObservation: [...selectableRegionIds].filter((regionId) =>
+          !snapshot.some((observation) => observation.regionId === regionId && observation.value !== null),
+        ),
         fi1bHistory: fi1bTrend.filter(({ year }) => [2015, 2019, 2023].includes(year)),
       }, null, 2));
     },

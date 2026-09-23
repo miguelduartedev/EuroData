@@ -73,6 +73,20 @@ it("ranks unemployment low-first and growth high-first while excluding missing d
   expect(metricRank(observations, "gdp_growth", 2023, "PT20", "higher", selectableIds)).toEqual({ position: 1, total: 2 });
 });
 
+it("ranks employment, population and population growth with higher values first", () => {
+  const observations: Observation[] = [
+    { regionId: "FI1B", metricId: "employment_rate", year: 2025, value: 77, unit: "% of population aged 20–64" },
+    { regionId: "PT20", metricId: "employment_rate", year: 2025, value: 81, unit: "% of population aged 20–64" },
+    { regionId: "FI1B", metricId: "population", year: 2025, value: 1_800_000, unit: "people" },
+    { regionId: "PT20", metricId: "population", year: 2025, value: 250_000, unit: "people" },
+    { regionId: "FI1B", metricId: "population_growth", year: 2025, value: -0.2, unit: "% change on previous year" },
+    { regionId: "PT20", metricId: "population_growth", year: 2025, value: 1.1, unit: "% change on previous year" },
+  ];
+  expect(metricRank(observations, "employment_rate", 2025, "PT20", "higher", selectableIds)).toEqual({ position: 1, total: 2 });
+  expect(metricRank(observations, "population", 2025, "FI1B", "higher", selectableIds)).toEqual({ position: 1, total: 2 });
+  expect(metricRank(observations, "population_growth", 2025, "PT20", "higher", selectableIds)).toEqual({ position: 1, total: 2 });
+});
+
 it("excludes numeric dataset-only IDs from ranking and its denominator", () => {
   const observations = [row(2023, 40, "FI1B"), row(2023, 20, "PT20"), row(2023, 999, "FIZZ"), row(2023, null, "SE11")];
   const ids = new Set(["FI1B", "PT20", "SE11"]);

@@ -18,6 +18,11 @@ it("formats GDP, euros and signed rates from the metric definition", () => {
   expect(formatMetricDifference(10_000, eur)).toBe("€10,000 per inhabitant");
   expect(formatMetricPeriodChange(12.6, pps)).toBe("+12.6%");
   expect(formatMetricPeriodChange(-1.4, unemployment)).toBe("-1.4 pp");
+  expect(formatMetricValue(1_234_567, getMetricDefinition("population"))).toBe("1,234,567");
+  expect(formatMetricValue(1_234_567, getMetricDefinition("population"), true)).toBe("1.2M");
+  expect(formatMetricValue(78.4, getMetricDefinition("employment_rate"))).toBe("78.4%");
+  expect(formatMetricPeriodChange(1.2, getMetricDefinition("employment_rate"))).toBe("+1.2 pp");
+  expect(formatMetricPeriodChange(-0.4, getMetricDefinition("population_growth"))).toBe("-0.4 pp");
 });
 
 it("retains available years and reconciles to the nearest earlier year", () => {

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { MetricId } from "../../types/metric";
-import { EUROSTAT_SNAPSHOT_YEAR, getMetricHistory, getNuts2MetricSnapshot, getNuts2MetricYears } from "./metrics";
+import { getMetricDefinition } from "../../data/metrics";
+import { deriveAnnualPercentChanges, EUROSTAT_SNAPSHOT_YEAR, getMetricHistory, getNuts2MetricSnapshot, getNuts2MetricYears } from "./metrics";
 
 export function useNuts2MetricSnapshot(metricId: MetricId, year: number | null = EUROSTAT_SNAPSHOT_YEAR) {
   return useQuery({
@@ -21,9 +22,14 @@ export function useNuts2MetricYears(metricId: MetricId) {
 
 export function useRegionMetricHistory(regionIds: readonly string[], metricId: MetricId) {
   const normalizedRegionIds = [...new Set(regionIds)].sort();
+  const metric = getMetricDefinition(metricId);
+  const sourceMetricId = metric.sourceMetricId ?? metricId;
   return useQuery({
-    queryKey: ["eurostat", "history", metricId, ...normalizedRegionIds],
-    queryFn: () => getMetricHistory(normalizedRegionIds, metricId),
+    queryKey: ["eurostat", "history", sourceMetricId, ...normalizedRegionIds],
+    queryFn: () => getMetricHistory(normalizedRegionIds, sourceMetricId),
+    select: metric.derivation === "annualPercentChange"
+      ? (observations) => deriveAnnualPercentChanges(observations, metricId, metric.unit)
+      : undefined,
     enabled: normalizedRegionIds.length > 0,
     staleTime: 60 * 60 * 1000,
   });

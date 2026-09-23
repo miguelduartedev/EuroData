@@ -4,7 +4,9 @@ const exact = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
 const compact = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1, notation: "compact" });
 
 export function formatMetricValue(value: number, metric: Pick<MetricDefinition, "valueFormat">, abbreviated = false): string {
-  const formatted = (abbreviated ? compact : exact).format(value);
+  const formatted = abbreviated
+    ? compact.format(value).replace(/K$/, "k").replace(/m$/, "M")
+    : exact.format(value);
   if (metric.valueFormat === "euro") return `€${formatted}`;
   if (metric.valueFormat === "percent") return `${formatted}%`;
   return formatted;

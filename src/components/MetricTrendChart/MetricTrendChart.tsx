@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TrendRangeControls } from "@/components/SelectedRegionDetails/TrendRangeControls";
 import type { TrendPoint } from "@/lib/metric-trend";
 import type { MetricDefinition } from "@/types/metric";
+import { formatMetricValue } from "@/lib/metric-format";
 
 export interface MetricTrendSeries {
   id: string;
@@ -27,9 +28,6 @@ interface MetricTrendChartProps {
   loadingAriaLabel: string;
   emptyMessage: string;
 }
-
-const compactNumber = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1, notation: "compact" });
-const exactNumber = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
 
 export function MetricTrendChart({
   metric, series, availableYears, fromYear, toYear, onFromYearChange, onToYearChange,
@@ -92,7 +90,7 @@ export function MetricTrendChart({
         <line x1={left} y1={height - bottom} x2={width - right} y2={height - bottom} className="stroke-border" />
         {yTicks.map((tick) => <g key={tick}>
           <line x1={left} y1={y(tick)} x2={width - right} y2={y(tick)} className="stroke-border/60" strokeDasharray="2 3" />
-          <text x={left - 7} y={y(tick) + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">{compactNumber.format(tick)}</text>
+          <text x={left - 7} y={y(tick) + 4} textAnchor="end" className="fill-muted-foreground text-[10px]">{formatMetricValue(tick, metric, true)}</text>
         </g>)}
         {segments.map((seriesSegments, seriesIndex) => seriesSegments.map((path, pathIndex) => <path
           key={`${series[seriesIndex].id}-${pathIndex}`}
@@ -112,7 +110,7 @@ export function MetricTrendChart({
             r="4"
             role="button"
             tabIndex={0}
-            aria-label={`${item.name}, ${point.year}: ${exactNumber.format(point.value)} ${metric.unit}`}
+            aria-label={`${item.name}, ${point.year}: ${formatMetricValue(point.value, metric)}${metric.valueFormat === "percent" ? "" : ` ${metric.unit}`}`}
             className="cursor-pointer stroke-background stroke-2 outline-none"
             style={{ fill: item.color }}
             onMouseEnter={() => setHoveredYear(point.year)}
@@ -134,7 +132,7 @@ export function MetricTrendChart({
               <circle cx="11" cy="0" r="3" fill={item.color} />
               <text x="20" y="4" className="fill-popover-foreground text-[10px]">{item.name}</text>
               <text x={tooltipWidth - 10} y="4" textAnchor="end" className="fill-popover-foreground text-[10px] font-medium tabular-nums">
-                {valueMaps[index].get(hoveredYear) == null ? "No data" : exactNumber.format(valueMaps[index].get(hoveredYear)!)}
+                {valueMaps[index].get(hoveredYear) == null ? "No data" : formatMetricValue(valueMaps[index].get(hoveredYear)!, metric)}
               </text>
             </g>)}
           </g>;

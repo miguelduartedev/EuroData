@@ -4,11 +4,11 @@ EuroData is an interactive web app for exploring and comparing **European NUTS 2
 
 The goal is to make regional economic data easier to understand through an interactive map, direct region-to-region comparisons, and historical trends.
 
-The project currently focuses on Denmark, Finland, Iceland, Norway, and Sweden.
+The explorer covers Europe-wide NUTS 2 regions.
 
 ## What it does
 
-Users can explore European statistical regions on an interactive map and compare two regions across selected indicators.
+Users can explore European statistical regions on a choropleth map, view single-region details and historical trends, and compare two regions.
 
 Each metric is backed by historical annual data, allowing the app to show both the latest available value and how the regions have developed over time.
 
@@ -20,9 +20,10 @@ Current datasets:
 
 | Metric            | Eurostat dataset  |
 | ----------------- | ----------------- |
-| GDP per capita    | `nama_10r_2gdp`   |
+| GDP per capita (PPS) | `nama_10r_2gdp` |
+| GDP per capita (EUR) | `nama_10r_2gdp` |
 | Unemployment rate | `lfst_r_lfu3rt`   |
-| Real GDP growth   | `nama_10r_2gvagr` |
+| Real GDP growth | `nama_10r_2gvagr` |
 
 Different indicators may have different latest available years.
 

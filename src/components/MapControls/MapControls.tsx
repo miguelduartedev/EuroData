@@ -9,12 +9,14 @@ import {
 } from "@/components/ui/combobox";
 import type { MetricDefinition, MetricId } from "@/types/metric";
 
+type MetricOption = Pick<MetricDefinition, "id" | "label">;
+
 export interface MapControlsProps {
-  metrics: readonly MetricDefinition[];
+  metrics: readonly MetricOption[];
   metricId: MetricId;
   onMetricChange: (metricId: MetricId) => void;
   years: readonly number[];
-  year: number;
+  year?: number;
   onYearChange: (year: number) => void;
   isYearLoading?: boolean;
   yearStatus?: string;
@@ -71,7 +73,7 @@ export function MapControls({
         >
           Metric
         </label>
-        <Combobox<MetricId, false, MetricDefinition>
+        <Combobox<MetricId, false, MetricOption>
           items={metricItems}
           value={metricId}
           onValueChange={(value) => {
@@ -90,7 +92,7 @@ export function MapControls({
           <ComboboxContent className="border border-slate-200 dark:border-slate-700">
             <ComboboxEmpty>No metrics found.</ComboboxEmpty>
             <ComboboxList>
-              {(metric: MetricDefinition) => (
+              {(metric: MetricOption) => (
                 <ComboboxItem key={metric.id} value={metric.id} className="min-h-11 px-2.5 py-2">
                   {metric.label}
                 </ComboboxItem>
@@ -110,7 +112,7 @@ export function MapControls({
         <div title={isYearLoading ? "Loading available years" : undefined}>
           <Combobox<string, false, number>
             items={yearItems}
-            value={String(year)}
+            value={year === undefined ? "" : String(year)}
             onValueChange={(value) => {
               const selectedYear = Number(value);
               if (Number.isInteger(selectedYear)) onYearChange(selectedYear);

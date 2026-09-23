@@ -43,7 +43,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 it("shares concurrent requests and reuses a fresh snapshot on remount", async () => {
-  const first = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita"), { wrapper });
+  const first = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita", 2023), { wrapper });
   const second = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita", 2023), { wrapper });
 
   await waitFor(() => expect(first.result.current.isSuccess && second.result.current.isSuccess).toBe(true));
@@ -52,7 +52,7 @@ it("shares concurrent requests and reuses a fresh snapshot on remount", async ()
   first.unmount();
   second.unmount();
 
-  const remounted = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita"), { wrapper });
+  const remounted = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita", 2023), { wrapper });
   expect(remounted.result.current.data).toBe(cachedData);
   expect(remounted.result.current.isStale).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(1);
@@ -60,9 +60,9 @@ it("shares concurrent requests and reuses a fresh snapshot on remount", async ()
 
 it("keeps different metric and year snapshots in separate cache entries", async () => {
   const snapshots = renderHook(() => ({
-    gdp: useNuts2MetricSnapshot("gdp_per_capita"),
+    gdp: useNuts2MetricSnapshot("gdp_per_capita", 2023),
     previousGdp: useNuts2MetricSnapshot("gdp_per_capita", 2022),
-    unemployment: useNuts2MetricSnapshot("unemployment_rate"),
+    unemployment: useNuts2MetricSnapshot("unemployment_rate", 2023),
   }), { wrapper });
 
   await waitFor(() => expect(Object.values(snapshots.result.current).every((query) => query.isSuccess)).toBe(true));
@@ -76,7 +76,7 @@ it("keeps different metric and year snapshots in separate cache entries", async 
 
 it("surfaces API failures as query errors and inherits the disabled retry setting", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503, statusText: "Service Unavailable" }));
-  const { result } = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita"), { wrapper });
+  const { result } = renderHook(() => useNuts2MetricSnapshot("gdp_per_capita", 2023), { wrapper });
 
   await waitFor(() => expect(result.current.isError).toBe(true));
   expect(result.current.error).toBeInstanceOf(EurostatHttpError);
@@ -89,7 +89,7 @@ it("caches available years separately from metric snapshots", async () => {
   const years = renderHook(() => useNuts2MetricYears("gdp_per_capita"), { wrapper });
 
   await waitFor(() => expect(years.result.current.isSuccess).toBe(true));
-  expect(years.result.current.data).toEqual([2024, 2023]);
+  expect(years.result.current.data).toEqual([2024]);
   expect(queryClient.getQueryData(["eurostat", "nuts2", "years", "gdp_per_capita"])).toBe(
     years.result.current.data,
   );

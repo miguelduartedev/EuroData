@@ -1,5 +1,5 @@
 import type { MetricId, Observation } from "../types/metric";
-import { buildMetricLookup } from "./choropleth";
+import { buildMapComparableMetricLookup } from "./map-comparable-observations";
 
 export interface RegionValue {
   regionId: string;
@@ -14,9 +14,9 @@ export interface MetricSummary {
 }
 
 export function summarizeMetric(
-  observations: readonly Observation[], metricId: MetricId, year: number,
+  observations: readonly Observation[], metricId: MetricId, year: number, selectableRegionIds: ReadonlySet<string>,
 ): MetricSummary {
-  const values = [...buildMetricLookup(observations, metricId, year)]
+  const values = [...buildMapComparableMetricLookup(observations, metricId, year, selectableRegionIds)]
     .filter((entry): entry is [string, number] => entry[1] !== null)
     .map(([regionId, value]) => ({ regionId, value }))
     .sort((a, b) => a.regionId.localeCompare(b.regionId));

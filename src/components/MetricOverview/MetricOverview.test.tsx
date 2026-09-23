@@ -44,7 +44,7 @@ it("retains cached statistics when a refresh fails", () => {
 });
 
 it("renders an empty snapshot as no data with zero valid regions", () => {
-  render(<MetricOverview {...props} summary={summarizeMetric([], "gdp_per_capita", 2023)} />);
+  render(<MetricOverview {...props} summary={summarizeMetric([], "gdp_per_capita", 2023, new Set())} />);
   expect(screen.getAllByText("No data")).toHaveLength(3);
   expect(screen.getByText("0")).toBeInTheDocument();
   expect(screen.queryByText(/NaN|Infinity/)).not.toBeInTheDocument();

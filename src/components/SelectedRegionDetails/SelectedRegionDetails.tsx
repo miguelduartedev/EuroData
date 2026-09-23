@@ -4,6 +4,7 @@ import { CountryFlag } from "@/components/CountryFlag/CountryFlag";
 import type { RegionMetadata } from "@/data/region-names";
 import type { MetricDefinition } from "@/types/metric";
 import { finiteValue } from "@/lib/choropleth";
+import { formatMetricPeriodChange, formatMetricValue } from "@/lib/metric-format";
 import {
   changeOverPeriod,
   filterTrendRange,
@@ -30,8 +31,6 @@ interface SelectedRegionDetailsProps {
   hasHistoryData: boolean;
 }
 
-const numberFormat = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
-
 export function SelectedRegionDetails({
   region, metric, year, value, color, isLoading, isError, hasData,
   trend, rank, isHistoryLoading, isHistoryError, hasHistoryData,
@@ -43,7 +42,7 @@ export function SelectedRegionDetails({
   const availableTrendYears = useMemo(() => selectableTrendYears(trend), [trend]);
   const { range, setFromYear, setToYear } = useTrendRange(availableTrendYears, year, `${region.id}:${metric.id}`);
   const filteredTrend = useMemo(() => filterTrendRange(trend, range), [trend, range]);
-  const change = useMemo(() => changeOverPeriod(filteredTrend), [filteredTrend]);
+  const change = useMemo(() => changeOverPeriod(filteredTrend, metric.periodChange), [filteredTrend, metric.periodChange]);
 
   return (
     <Card role="region" aria-labelledby={headingId} aria-busy={loading} className="gap-0 rounded-lg border border-border py-0 shadow-none ring-0">
@@ -60,14 +59,14 @@ export function SelectedRegionDetails({
         <p className="text-sm font-medium">{metric.label}</p>
         <div className="mt-2 min-h-9">
           {loading ? <span aria-label="Loading selected region value" className="block h-9 w-28 animate-pulse rounded bg-muted motion-reduce:animate-none" /> :
-            <p className="text-3xl font-semibold tracking-tight tabular-nums">{unavailable ? "—" : numericValue === null ? "No data" : numberFormat.format(numericValue)}</p>}
+            <p className="text-3xl font-semibold tracking-tight tabular-nums">{unavailable ? "—" : numericValue === null ? "No data" : formatMetricValue(numericValue, metric)}</p>}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{metric.unit} · {year}</p>
         {(change || rank) ? <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3">
           {change ? <div>
             <dt className="text-xs text-muted-foreground">Change over period</dt>
-            <dd className={`mt-1 text-sm font-semibold tabular-nums ${change.percent > 0 ? "text-emerald-600 dark:text-emerald-400" : change.percent < 0 ? "text-rose-600 dark:text-rose-400" : ""}`}>
-              {`${change.percent >= 0 ? "+" : ""}${numberFormat.format(change.percent)}%`}
+            <dd className={`mt-1 text-sm font-semibold tabular-nums ${change.value === 0 ? "" : (change.value > 0) === (metric.rankDirection === "higher") ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              {formatMetricPeriodChange(change.value, metric)}
             </dd>
             <p className="text-xs text-muted-foreground">since {change.sinceYear}</p>
           </div> : null}

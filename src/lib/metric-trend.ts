@@ -1,5 +1,6 @@
 import type { MetricId, Observation } from "../types/metric";
 import { finiteValue } from "./choropleth";
+import { buildMapComparableMetricLookup } from "./map-comparable-observations";
 
 export interface TrendPoint {
   year: number;
@@ -66,23 +67,21 @@ export function filterTrendRange(points: readonly TrendPoint[], range: TrendRang
   return points.filter((point) => point.year >= range.fromYear && point.year <= range.toYear);
 }
 
-export function changeOverPeriod(points: readonly TrendPoint[]): { percent: number; sinceYear: number } | null {
+export function changeOverPeriod(points: readonly TrendPoint[], mode: "relative" | "percentagePoints" = "relative"): { value: number; sinceYear: number } | null {
   const valid = points.filter((point): point is TrendPoint & { value: number } => point.value !== null);
-  if (valid.length < 2 || valid[0].value === 0) return null;
+  if (valid.length < 2 || (mode === "relative" && valid[0].value === 0)) return null;
   const first = valid[0];
   const latest = valid[valid.length - 1];
-  return { percent: ((latest.value - first.value) / Math.abs(first.value)) * 100, sinceYear: first.year };
+  return { value: mode === "percentagePoints" ? latest.value - first.value : ((latest.value - first.value) / Math.abs(first.value)) * 100, sinceYear: first.year };
 }
 
 export function metricRank(
-  observations: readonly Observation[], metricId: MetricId, year: number, regionId: string, direction: "higher" | "lower" = "higher",
+  observations: readonly Observation[], metricId: MetricId, year: number, regionId: string,
+  direction: "higher" | "lower", selectableRegionIds: ReadonlySet<string>,
 ): MetricRank | null {
   const values = new Map<string, number>();
-  observations.forEach((observation) => {
-    if (observation.metricId === metricId && observation.year === year) {
-      const value = finiteValue(observation.value);
-      if (value !== null) values.set(observation.regionId, value);
-    }
+  buildMapComparableMetricLookup(observations, metricId, year, selectableRegionIds).forEach((value, id) => {
+    if (value !== null) values.set(id, value);
   });
   if (!values.has(regionId)) return null;
   const ranked = [...values].sort(([firstId, firstValue], [secondId, secondValue]) =>

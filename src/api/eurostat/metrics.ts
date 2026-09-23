@@ -1,27 +1,18 @@
 import type { MetricId, Observation } from "../../types/metric";
+import { getMetricDefinition, metricRegistry } from "../../data/metrics";
 import { getEurostatDataset } from "./client";
-import { parseAnnualTimePeriods, parseMetricObservations } from "./parser";
+import { parseMetricObservations } from "./parser";
 import type { MetricConfiguration } from "./types";
 
 export const EUROSTAT_SNAPSHOT_YEAR = 2023;
 
-export const eurostatMetrics: Record<MetricId, MetricConfiguration> = {
-  gdp_per_capita: {
-    datasetId: "nama_10r_2gdp",
-    filters: { freq: "A", unit: "PPS_EU27_2020_HAB" },
-    unit: "PPS per inhabitant",
-  },
-  unemployment_rate: {
-    datasetId: "lfst_r_lfu3rt",
-    filters: { freq: "A", isced11: "TOTAL", sex: "T", age: "Y15-74", unit: "PC" },
-    unit: "% of labour force",
-  },
-  gdp_growth: {
-    datasetId: "nama_10r_2gvagr",
-    filters: { freq: "A", na_item: "B1GQ", unit: "PCH_PRE" },
-    unit: "% change on previous year",
-  },
-};
+/** Compatibility view for callers inspecting API settings; definitions live in the metric registry. */
+export const eurostatMetrics: Record<MetricId, MetricConfiguration> = Object.fromEntries(
+  (Object.keys(metricRegistry) as MetricId[]).map((id) => {
+    const metric = getMetricDefinition(id);
+    return [id, { ...metric.eurostat, unit: metric.unit }];
+  }),
+) as Record<MetricId, MetricConfiguration>;
 
 function uniqueRegionIds(regionIds: string[]): string[] {
   return [...new Set(regionIds)];
@@ -32,9 +23,9 @@ export async function getNuts2MetricSnapshot(
   metricId: MetricId,
   year = EUROSTAT_SNAPSHOT_YEAR,
 ): Promise<Observation[]> {
-  const metric = eurostatMetrics[metricId];
-  const dataset = await getEurostatDataset(metric.datasetId, {
-    ...metric.filters,
+  const metric = getMetricDefinition(metricId);
+  const dataset = await getEurostatDataset(metric.eurostat.datasetId, {
+    ...metric.eurostat.filters,
     geoLevel: "nuts2",
     time: String(year),
   });
@@ -43,13 +34,18 @@ export async function getNuts2MetricSnapshot(
 }
 
 export async function getNuts2MetricYears(metricId: MetricId): Promise<number[]> {
-  const metric = eurostatMetrics[metricId];
-  const dataset = await getEurostatDataset(metric.datasetId, {
-    ...metric.filters,
+  const metric = getMetricDefinition(metricId);
+  const dataset = await getEurostatDataset(metric.eurostat.datasetId, {
+    ...metric.eurostat.filters,
     geoLevel: "nuts2",
   });
 
-  return parseAnnualTimePeriods(dataset);
+  const observations = parseMetricObservations(dataset, { metricId, unit: metric.unit });
+  return [...new Set(
+    observations
+      .filter(({ value }) => typeof value === "number" && Number.isFinite(value))
+      .map(({ year }) => year),
+  )].sort((first, second) => second - first);
 }
 
 export async function getMetricHistory(regionIds: string[], metricId: MetricId): Promise<Observation[]> {
@@ -58,9 +54,9 @@ export async function getMetricHistory(regionIds: string[], metricId: MetricId):
     return [];
   }
 
-  const metric = eurostatMetrics[metricId];
-  const dataset = await getEurostatDataset(metric.datasetId, {
-    ...metric.filters,
+  const metric = getMetricDefinition(metricId);
+  const dataset = await getEurostatDataset(metric.eurostat.datasetId, {
+    ...metric.eurostat.filters,
     geo: geographies,
   });
 

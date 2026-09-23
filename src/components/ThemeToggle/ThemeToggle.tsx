@@ -36,7 +36,7 @@ export function ThemeToggle() {
       size="icon"
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       aria-pressed={isDark}
-      className="size-9 shrink-0 rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+      className="size-9 shrink-0 cursor-pointer rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
       onClick={toggleTheme}
     >
       {isDark ? <SunIcon /> : <MoonIcon />}

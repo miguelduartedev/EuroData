@@ -50,12 +50,13 @@ it("renders generic region cards with flags, current values, ranks and a neutral
   expect(screen.getByLabelText("Region B: Região Autónoma dos Açores")).toHaveTextContent("181 / 276");
   expect(screen.getByText(`25,000 ${metrics[0].unit}`)).toBeInTheDocument();
   expect(screen.getByText("+100%")).toBeInTheDocument();
+  expect(screen.getByText("Helsinki-Uusimaa relative to Região Autónoma dos Açores")).toBeInTheDocument();
 });
 
 it("renders two series, preserves a missing point, and shows both values in the tooltip", () => {
   render(<RegionComparison {...props} />);
 
-  expect(screen.getByRole("img", { name: "GDP per capita comparison line chart" })).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "GDP per capita (PPS) comparison line chart" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Helsinki-Uusimaa, 2023: 50,000 PPS per inhabitant" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Região Autónoma dos Açores, 2023: 25,000 PPS per inhabitant" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Helsinki-Uusimaa, 2020/ })).not.toBeInTheDocument();

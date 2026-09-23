@@ -59,8 +59,24 @@ it("requests every available NUTS 2 GDP year without a time filter", async () =>
   expect(requestedUrl.searchParams.has("time")).toBe(false);
 });
 
+it("returns only years with at least one numeric regional observation", async () => {
+  const dataset = {
+    ...sparseEurostatFixture,
+    size: [3, 1, 2, 1],
+    dimension: {
+      ...sparseEurostatFixture.dimension,
+      time: { category: { index: { "2016": 0, "2015": 1, "2017": 2 } } },
+    },
+  };
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => dataset });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(getNuts2MetricYears("gdp_per_capita")).resolves.toEqual([2016, 2015]);
+});
+
 it.each([
   ["gdp_per_capita", "PPS per inhabitant"],
+  ["gdp_per_capita_eur", "EUR per inhabitant"],
   ["unemployment_rate", "% of labour force"],
   ["gdp_growth", "% change on previous year"],
 ] as const)("normalizes %s with its configured unit", async (metricId, unit) => {
@@ -77,6 +93,21 @@ it.each([
   Object.entries(eurostatMetrics[metricId].filters).forEach(([key, value]) => {
     expect(requestedUrl.searchParams.get(key)).toBe(value);
   });
+});
+
+it.each([
+  ["gdp_per_capita", "nama_10r_2gdp", { freq: "A", unit: "PPS_EU27_2020_HAB" }],
+  ["gdp_per_capita_eur", "nama_10r_2gdp", { freq: "A", unit: "EUR_HAB" }],
+  ["gdp_growth", "nama_10r_2gvagr", { freq: "A", na_item: "B1GQ", unit: "PCH_PRE" }],
+  ["unemployment_rate", "lfst_r_lfu3rt", { freq: "A", isced11: "TOTAL", sex: "T", age: "Y15-74", unit: "PC" }],
+] as const)("requests %s from its configured dataset and filters", async (metricId, datasetId, filters) => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => europeSnapshotFixture });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await getNuts2MetricSnapshot(metricId, 2023);
+  const url = new URL(fetchMock.mock.calls[0][0]);
+  expect(url.pathname).toContain(`/data/${datasetId}`);
+  expect(Object.fromEntries(url.searchParams)).toEqual({ ...filters, geoLevel: "nuts2", time: "2023" });
 });
 
 it("surfaces Eurostat HTTP failures with status context", async () => {

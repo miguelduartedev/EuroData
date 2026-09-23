@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { regionDisplayName } from "@/data/region-names";
 import type { MetricSummary } from "@/lib/metric-summary";
 import type { MetricDefinition } from "@/types/metric";
+import { formatMetricValue } from "@/lib/metric-format";
 
 interface MetricOverviewProps {
   metric: MetricDefinition;
@@ -23,7 +24,7 @@ export function MetricOverview({ metric, year, summary, regionNames, isLoading, 
   const averageTooltipId = useId();
   const unavailable = isError && !hasData;
   const loading = isLoading && !hasData;
-  const format = (value: number | null) => value === null ? "No data" : numberFormat.format(value);
+  const format = (value: number | null) => value === null ? "No data" : formatMetricValue(value, metric);
   const stats: { label: string; value: string; detail: string; help?: ReactNode }[] = [
     {
       label: "Regional average", value: format(summary.average), detail: metric.unit,

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { buildRegionMetadata, regionDisplayName } from "./region-names";
+import { buildRegionMetadata, buildSelectableRegionIds, regionDisplayName } from "./region-names";
 
 it("uses GISCO name precedence and falls back to source IDs", () => {
   const metadata = buildRegionMetadata({ type: "FeatureCollection", features: [
@@ -15,4 +15,13 @@ it("uses GISCO name precedence and falls back to source IDs", () => {
   expect(regionDisplayName("ES70", names)).toBe("Canarias (ES70)");
   expect(regionDisplayName("PTZZ", names)).toBe("PTZZ");
   expect(regionDisplayName("FI1B", new Map())).toBe("FI1B");
+});
+
+it("derives selectable IDs from GISCO polygons rather than code patterns", () => {
+  const collection = { type: "FeatureCollection" as const, features: [
+    { type: "Feature" as const, geometry: { type: "Polygon" as const, coordinates: [] }, properties: { NUTS_ID: "PT20" } },
+    { type: "Feature" as const, geometry: null, properties: { NUTS_ID: "FIZZ" } },
+    { type: "Feature" as const, geometry: { type: "Point" as const, coordinates: [0, 0] }, properties: { NUTS_ID: "NLZZ" } },
+  ] };
+  expect(buildSelectableRegionIds(collection)).toEqual(new Set(["PT20"]));
 });

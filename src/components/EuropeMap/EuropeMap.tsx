@@ -54,7 +54,7 @@ const darkMapPalette: MapPalette = {
   regionOutline: "#94a3b8",
 };
 
-export interface NordicMapProps {
+export interface EuropeMapProps {
   metric: MapMetric;
   regionAId?: string;
   regionBId?: string;
@@ -290,7 +290,7 @@ function waitForStyle(map: MapLibreMap): Promise<void> {
   });
 }
 
-export function NordicMap({ metric, regionAId, regionBId, onRegionClick }: NordicMapProps) {
+export function EuropeMap({ metric, regionAId, regionBId, onRegionClick }: EuropeMapProps) {
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -302,6 +302,8 @@ export function NordicMap({ metric, regionAId, regionBId, onRegionClick }: Nordi
   const geometryRef = useRef<FeatureCollection<Nuts2Geometry, GeoJsonProperties> | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const hoveredPropertiesRef = useRef<GeoJsonProperties>(null);
+  const hasInitialViewportFitRef = useRef(false);
+  const hasViewportInteractionRef = useRef(false);
 
   metricRef.current = metric;
 
@@ -340,6 +342,22 @@ export function NordicMap({ metric, regionAId, regionBId, onRegionClick }: Nordi
     mapRef.current = map;
     const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12, className: "metric-popup" });
     popupRef.current = popup;
+
+    const preserveUserViewport = () => {
+      hasViewportInteractionRef.current = true;
+    };
+    map.on("mousedown", preserveUserViewport);
+    map.on("touchstart", preserveUserViewport);
+    map.on("dragstart", preserveUserViewport);
+    map.on("wheel", preserveUserViewport);
+    map.on("zoomstart", preserveUserViewport);
+
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? undefined
+      : new ResizeObserver(() => {
+        map.resize();
+      });
+    resizeObserver?.observe(mapContainer);
 
     const initialiseGeometry = () => {
       void (async () => {
@@ -389,7 +407,11 @@ export function NordicMap({ metric, regionAId, regionBId, onRegionClick }: Nordi
             regionBIdRef.current,
             mapPalette(isDarkModeRef.current),
           );
-          fitEuropeanBounds(map);
+          if (!hasInitialViewportFitRef.current && !hasViewportInteractionRef.current) {
+            map.resize();
+            fitEuropeanBounds(map);
+            hasInitialViewportFitRef.current = true;
+          }
         } catch (error) {
           if (!requestController.signal.aborted) {
             console.error("Unable to initialise European NUTS map geometry.", error);
@@ -442,6 +464,7 @@ export function NordicMap({ metric, regionAId, regionBId, onRegionClick }: Nordi
 
     return () => {
       requestController.abort();
+      resizeObserver?.disconnect();
       popup.remove();
       popupRef.current = null;
       hoveredPropertiesRef.current = null;

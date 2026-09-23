@@ -2,6 +2,7 @@ import { createExpression } from "@maplibre/maplibre-gl-style-spec";
 import type { FeatureCollection, Polygon } from "geojson";
 import { expect, it } from "vitest";
 import { gdpChoroplethScale as scale } from "../data/map-metric";
+import { getMetricDefinition } from "../data/metrics";
 import type { Observation } from "../types/metric";
 import {
   buildMetricLookup, choroplethBand, choroplethExpression, choroplethLegend,
@@ -74,4 +75,18 @@ it("formats hover names, values and missing data without implying euros or zero"
   ]);
   expect(metricHoverText({ NUTS_ID: "PT20", NUTS_NAME: "Azores" }, populated)).toEqual(["Azores (PT20)", "0", "PPS per inhabitant · 2023"]);
   for (const id of ["ES70", "IS00"]) expect(metricHoverText({ NUTS_ID: id }, populated)[1]).toBe("No data");
+});
+
+it("formats EUR and percentage hover values with their configured units", () => {
+  for (const [metricId, value, formatted] of [
+    ["gdp_per_capita_eur", 42000, "€42,000"],
+    ["gdp_growth", -2.4, "-2.4%"],
+    ["unemployment_rate", 0, "0%"],
+  ] as const) {
+    const definition = getMetricDefinition(metricId);
+    expect(metricHoverText({ NUTS_ID: "FI1B" }, {
+      ...metric, values: new Map([["FI1B", value]]), label: definition.label,
+      unit: definition.unit, valueFormat: definition.valueFormat,
+    })).toEqual(["FI1B", formatted, `${definition.unit} · 2023`]);
+  }
 });

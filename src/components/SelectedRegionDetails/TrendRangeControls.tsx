@@ -23,7 +23,7 @@ export function TrendRangeControls({ availableYears, fromYear, toYear, onFromYea
         value={fromYear ?? ""}
         onChange={(event) => onFromYearChange(Number(event.target.value))}
         disabled={fromYear === undefined || toYear === undefined}
-        className="h-7 rounded border border-border bg-background px-1.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-7 cursor-pointer rounded border border-border bg-background px-1.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
       >
         {availableYears.filter((year) => toYear === undefined || year <= toYear).map((year) => <option key={year} value={year}>{year}</option>)}
       </select>
@@ -35,7 +35,7 @@ export function TrendRangeControls({ availableYears, fromYear, toYear, onFromYea
         value={toYear ?? ""}
         onChange={(event) => onToYearChange(Number(event.target.value))}
         disabled={fromYear === undefined || toYear === undefined}
-        className="h-7 rounded border border-border bg-background px-1.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-7 cursor-pointer rounded border border-border bg-background px-1.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
       >
         {availableYears.filter((year) => fromYear === undefined || year >= fromYear).map((year) => <option key={year} value={year}>{year}</option>)}
       </select>

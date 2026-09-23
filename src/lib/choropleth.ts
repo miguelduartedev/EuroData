@@ -1,6 +1,7 @@
 import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
 import type { ExpressionSpecification } from "maplibre-gl";
 import type { MetricId, Observation } from "../types/metric";
+import { formatMetricValue } from "./metric-format";
 
 export interface ChoroplethScale {
   thresholds: readonly number[];
@@ -14,13 +15,13 @@ export interface MapMetric {
   unit: string;
   year: number;
   scale: ChoroplethScale;
+  valueFormat?: "number" | "euro" | "percent";
   isLoading: boolean;
   isError: boolean;
 }
 
 export const METRIC_VALUE_PROPERTY = "metricValue";
 export const NO_DATA_COLORS = { light: "#cbd5e1", dark: "#475569" } as const;
-const numberFormat = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
 
 export function finiteValue(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -55,12 +56,13 @@ export function choroplethBand(value: number | null | undefined, scale: Chorople
   return band === -1 ? scale.thresholds.length : band;
 }
 
-export function choroplethLegend(scale: ChoroplethScale): Array<{ label: string; color: string }> {
+export function choroplethLegend(scale: ChoroplethScale, valueFormat: "number" | "euro" | "percent" = "number"): Array<{ label: string; color: string }> {
+  const label = (value: number) => formatMetricValue(value, { valueFormat });
   return scale.colors.map((color, index) => ({
     color,
-    label: index === 0 ? `<${numberFormat.format(scale.thresholds[0])}`
-      : index === scale.thresholds.length ? `≥${numberFormat.format(scale.thresholds[index - 1])}`
-        : `${numberFormat.format(scale.thresholds[index - 1])}–<${numberFormat.format(scale.thresholds[index])}`,
+    label: index === 0 ? `<${label(scale.thresholds[0])}`
+      : index === scale.thresholds.length ? `≥${label(scale.thresholds[index - 1])}`
+        : `${label(scale.thresholds[index - 1])}–<${label(scale.thresholds[index])}`,
   }));
 }
 
@@ -78,7 +80,7 @@ export function metricHoverText(properties: GeoJsonProperties, metric: MapMetric
   const value = finiteValue(metric.values.get(id));
   return [
     name === id ? id : `${name} (${id})`,
-    value === null ? (metric.isLoading ? "Loading data…" : "No data") : numberFormat.format(value),
+    value === null ? (metric.isLoading ? "Loading data…" : "No data") : formatMetricValue(value, { valueFormat: metric.valueFormat ?? "number" }),
     `${metric.unit} · ${metric.year}`,
   ];
 }

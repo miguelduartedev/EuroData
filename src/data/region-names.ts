@@ -8,6 +8,11 @@ export interface RegionMetadata {
   countryName?: string;
 }
 
+export interface RegionCatalog {
+  metadata: ReadonlyMap<string, RegionMetadata>;
+  selectableIds: ReadonlySet<string>;
+}
+
 function nonEmpty(value: unknown): string | undefined {
   return typeof value === "string" ? value.trim() || undefined : undefined;
 }
@@ -27,18 +32,36 @@ export function buildRegionMetadata(collection: FeatureCollection<Geometry | nul
   return metadata;
 }
 
+/** GISCO NUTS IDs that have a polygon the map can render and select. */
+export function buildSelectableRegionIds(collection: FeatureCollection<Geometry | null>): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const feature of collection.features) {
+    const id = nonEmpty(feature.properties?.NUTS_ID);
+    const geometry = feature.geometry;
+    if (id && geometry && (geometry.type === "Polygon" || geometry.type === "MultiPolygon")) ids.add(id);
+  }
+  return ids;
+}
+
+export function buildRegionCatalog(collection: FeatureCollection<Geometry | null>): RegionCatalog {
+  return {
+    metadata: buildRegionMetadata(collection),
+    selectableIds: buildSelectableRegionIds(collection),
+  };
+}
+
 export function regionDisplayName(id: string, names: ReadonlyMap<string, string>): string {
   const name = names.get(id);
   return name && name !== id ? `${name} (${id})` : id;
 }
 
-export function useRegionMetadata() {
+export function useRegionCatalog() {
   return useQuery({
     queryKey: ["gisco", "nuts2", "2024", "metadata"],
     queryFn: async ({ signal }) => {
       const response = await fetch(`${import.meta.env.BASE_URL}data/europe-nuts-2-2024.geojson`, { signal });
       if (!response.ok) throw new Error("Unable to load GISCO region names.");
-      return buildRegionMetadata(await response.json());
+      return buildRegionCatalog(await response.json());
     },
     staleTime: Infinity,
   });

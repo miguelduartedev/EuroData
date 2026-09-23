@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNuts2MetricSnapshot, useNuts2MetricYears, useRegionMetricHistory } from "./api/eurostat/queries"
 import { EUROSTAT_SNAPSHOT_YEAR } from "./api/eurostat/metrics"
-import { metrics } from "./data/metrics"
-import { gdpChoroplethScale } from "./data/map-metric"
+import { getMetricDefinition, metrics } from "./data/metrics"
+import { availableMetricYear } from "./lib/metric-year"
 import { buildMetricLookup } from "./lib/choropleth"
 import { MapControls } from "./components/MapControls/MapControls"
 import { MetricOverview } from "./components/MetricOverview/MetricOverview"
 import { MapGuidance } from "./components/MapGuidance/MapGuidance"
-import { NordicMap } from "./components/NordicMap/NordicMap"
+import { EuropeMap } from "./components/EuropeMap/EuropeMap"
 import { summarizeMetric } from "./lib/metric-summary"
-import { useRegionMetadata } from "./data/region-names"
+import { useRegionCatalog } from "./data/region-names"
 import { SelectedRegionDetails } from "./components/SelectedRegionDetails/SelectedRegionDetails"
 import { RegionComparison } from "./components/RegionComparison/RegionComparison"
 import { ThemeToggle } from "./components/ThemeToggle/ThemeToggle"
@@ -23,34 +23,43 @@ const initialRegionSelections: RegionSelections = {
   regionAId: undefined,
   regionBId: undefined,
 }
-
-const mapMetricIds: readonly MetricId[] = ["gdp_per_capita"]
-const mapMetrics = metrics.filter((metric) => mapMetricIds.includes(metric.id))
+const noSelectableRegions = new Set<string>()
 
 export function App() {
   const [metricId, setMetricId] = useState<MetricId>("gdp_per_capita")
-  const [selectedYear, setSelectedYear] = useState(EUROSTAT_SNAPSHOT_YEAR)
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined)
   const metricYears = useNuts2MetricYears(metricId)
-  const snapshot = useNuts2MetricSnapshot(metricId, selectedYear)
-  const regionMetadata = useRegionMetadata()
+  const year = metricYears.data?.length
+    ? availableMetricYear(selectedYear ?? metricYears.data[0], metricYears.data)
+    : selectedYear ?? EUROSTAT_SNAPSHOT_YEAR
+  const snapshot = useNuts2MetricSnapshot(metricId, metricYears.data?.length ? year : null)
+  useEffect(() => {
+    if (metricYears.data?.length && selectedYear !== year) setSelectedYear(year)
+  }, [metricYears.data, selectedYear, year])
+  const regionCatalog = useRegionCatalog()
+  const selectableRegionIds = regionCatalog.data?.selectableIds ?? noSelectableRegions
   const regionNames = useMemo(
-    () => new Map([...regionMetadata.data ?? []].map(([id, region]) => [id, region.name])),
-    [regionMetadata.data],
+    () => new Map([...regionCatalog.data?.metadata ?? []].map(([id, region]) => [id, region.name])),
+    [regionCatalog.data],
   )
   const summary = useMemo(
-    () => summarizeMetric(snapshot.data ?? [], metricId, selectedYear),
-    [snapshot.data, metricId, selectedYear],
+    () => summarizeMetric(snapshot.data ?? [], metricId, year, selectableRegionIds),
+    [snapshot.data, metricId, year, selectableRegionIds],
   )
   const availableYears = useMemo(
-    () => Array.from(new Set([selectedYear, ...(metricYears.data ?? [EUROSTAT_SNAPSHOT_YEAR])]))
+      () => Array.from(new Set([year, ...(metricYears.data ?? [])]))
       .sort((first, second) => second - first),
-    [metricYears.data, selectedYear],
+    [metricYears.data, year],
   )
   const metricValues = useMemo(
-    () => buildMetricLookup(snapshot.data ?? [], metricId, selectedYear),
-    [metricId, selectedYear, snapshot.data],
+    () => buildMetricLookup(snapshot.data ?? [], metricId, year),
+    [metricId, year, snapshot.data],
   )
-  const selectedMetric = mapMetrics.find((metric) => metric.id === metricId) ?? mapMetrics[0]
+  const selectedMetric = getMetricDefinition(metricId)
+  const handleMetricChange = (nextMetricId: MetricId) => {
+    setMetricId(nextMetricId)
+    setSelectedYear(undefined)
+  }
   const [regionSelections, setRegionSelections] = useState<RegionSelections>(
     initialRegionSelections,
   )
@@ -63,8 +72,8 @@ export function App() {
     [history.data, metricId, singleRegionId],
   )
   const selectedRank = useMemo(
-    () => singleRegionId ? metricRank(snapshot.data ?? [], metricId, selectedYear, singleRegionId, selectedMetric.rankDirection) : null,
-    [metricId, selectedMetric.rankDirection, selectedYear, singleRegionId, snapshot.data],
+    () => singleRegionId ? metricRank(snapshot.data ?? [], metricId, year, singleRegionId, selectedMetric.rankDirection, selectableRegionIds) : null,
+    [metricId, selectedMetric.rankDirection, year, singleRegionId, snapshot.data, selectableRegionIds],
   )
   const comparisonRegionIds = selectedIds.length === 2 ? selectedIds as [string, string] : undefined
   const comparisonTrends = useMemo(() => comparisonRegionIds ? [
@@ -72,9 +81,9 @@ export function App() {
     trendPoints(history.data ?? [], comparisonRegionIds[1], metricId),
   ] as const : undefined, [comparisonRegionIds?.[0], comparisonRegionIds?.[1], history.data, metricId])
   const comparisonRanks = useMemo(() => comparisonRegionIds ? [
-    metricRank(snapshot.data ?? [], metricId, selectedYear, comparisonRegionIds[0], selectedMetric.rankDirection),
-    metricRank(snapshot.data ?? [], metricId, selectedYear, comparisonRegionIds[1], selectedMetric.rankDirection),
-  ] as const : undefined, [comparisonRegionIds?.[0], comparisonRegionIds?.[1], metricId, selectedMetric.rankDirection, selectedYear, snapshot.data])
+    metricRank(snapshot.data ?? [], metricId, year, comparisonRegionIds[0], selectedMetric.rankDirection, selectableRegionIds),
+    metricRank(snapshot.data ?? [], metricId, year, comparisonRegionIds[1], selectedMetric.rankDirection, selectableRegionIds),
+  ] as const : undefined, [comparisonRegionIds?.[0], comparisonRegionIds?.[1], metricId, selectedMetric.rankDirection, year, snapshot.data, selectableRegionIds])
 
   const handleMapRegionClick = (regionId: string) => {
     setRegionSelections((currentSelections) =>
@@ -102,18 +111,18 @@ export function App() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:min-h-0 lg:items-start lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:grid-cols-2">
+        <div className="grid grid-cols-1 lg:min-h-0 lg:items-start lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:grid-cols-2">
           <section
-            className="min-w-0 overflow-hidden border-b border-border lg:flex lg:h-full lg:flex-col lg:border-r lg:border-b-0"
+            className="min-w-0 overflow-hidden border-b border-border lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:border-r lg:border-b-0"
             aria-label="European NUTS 2 region map"
           >
             <div className="shrink-0 border-b border-border bg-card px-[clamp(20px,3vw,36px)] py-[18px]">
               <MapControls
-                metrics={mapMetrics}
+                metrics={metrics}
                 metricId={metricId}
-                onMetricChange={setMetricId}
-                years={availableYears}
-                year={selectedYear}
+                onMetricChange={handleMetricChange}
+                years={metricYears.data?.length ? availableYears : []}
+                year={metricYears.data?.length ? year : undefined}
                 onYearChange={setSelectedYear}
                 isYearLoading={metricYears.isPending}
                 yearStatus={
@@ -123,13 +132,14 @@ export function App() {
                 }
               />
             </div>
-            <NordicMap
+            <EuropeMap
               metric={{
                 values: metricValues,
                 label: selectedMetric.label,
                 unit: selectedMetric.unit,
-                year: selectedYear,
-                scale: gdpChoroplethScale,
+                year,
+                scale: selectedMetric.choropleth,
+                valueFormat: selectedMetric.valueFormat,
                 isLoading: snapshot.isPending,
                 isError: snapshot.isError,
               }}
@@ -138,14 +148,14 @@ export function App() {
               onRegionClick={handleMapRegionClick}
             />
           </section>
-          <aside className="grid min-w-0 content-start gap-4 p-[clamp(20px,3vw,36px)]">
+          <aside className="grid min-w-0 content-start gap-4 p-[clamp(20px,3vw,36px)] lg:h-full lg:min-h-0 lg:auto-rows-max lg:overflow-y-auto">
             {comparisonRegionIds && comparisonTrends && comparisonRanks ? <RegionComparison
               metric={selectedMetric}
-              year={selectedYear}
+              year={year}
               regions={[
                 {
                   slot: "Region A",
-                  metadata: regionMetadata.data?.get(comparisonRegionIds[0]) ?? { id: comparisonRegionIds[0], name: comparisonRegionIds[0] },
+                  metadata: regionCatalog.data?.metadata.get(comparisonRegionIds[0]) ?? { id: comparisonRegionIds[0], name: comparisonRegionIds[0] },
                   color: REGION_A_COLOR,
                   value: metricValues.get(comparisonRegionIds[0]) ?? null,
                   rank: comparisonRanks[0],
@@ -153,7 +163,7 @@ export function App() {
                 },
                 {
                   slot: "Region B",
-                  metadata: regionMetadata.data?.get(comparisonRegionIds[1]) ?? { id: comparisonRegionIds[1], name: comparisonRegionIds[1] },
+                  metadata: regionCatalog.data?.metadata.get(comparisonRegionIds[1]) ?? { id: comparisonRegionIds[1], name: comparisonRegionIds[1] },
                   color: REGION_B_COLOR,
                   value: metricValues.get(comparisonRegionIds[1]) ?? null,
                   rank: comparisonRanks[1],
@@ -170,7 +180,7 @@ export function App() {
             /> : <>
               <MetricOverview
                 metric={selectedMetric}
-                year={selectedYear}
+                year={year}
                 summary={summary}
                 regionNames={regionNames}
                 isLoading={snapshot.isPending}
@@ -178,9 +188,9 @@ export function App() {
                 hasData={snapshot.data !== undefined}
               />
               {singleRegionId ? <SelectedRegionDetails
-                region={regionMetadata.data?.get(singleRegionId) ?? { id: singleRegionId, name: singleRegionId }}
+                region={regionCatalog.data?.metadata.get(singleRegionId) ?? { id: singleRegionId, name: singleRegionId }}
                 metric={selectedMetric}
-                year={selectedYear}
+                year={year}
                 value={metricValues.get(singleRegionId) ?? null}
                 color={regionSelections.regionAId === singleRegionId ? REGION_A_COLOR : REGION_B_COLOR}
                 isLoading={snapshot.isPending}

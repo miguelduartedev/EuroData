@@ -6,7 +6,7 @@ export function MapLegend({ metric, noDataColor }: { metric: MapMetric; noDataCo
       <h2 className="text-xs font-semibold">{metric.label} · {metric.year}</h2>
       <p className="mb-2 mt-0.5 text-[11px] text-muted-foreground">{metric.unit}</p>
       <ul className="grid gap-1">
-        {[...choroplethLegend(metric.scale), { label: "No data", color: noDataColor }].map(({ label, color }) => (
+        {[...choroplethLegend(metric.scale, metric.valueFormat), { label: "No data", color: noDataColor }].map(({ label, color }) => (
           <li key={label} className="flex items-center gap-2">
             <span aria-hidden="true" className="size-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
             <span>{label}</span>

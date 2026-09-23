@@ -11,6 +11,7 @@ import {
   type TrendPoint,
 } from "@/lib/metric-trend";
 import type { MetricDefinition } from "@/types/metric";
+import { formatMetricDifference, formatMetricPeriodChange, formatMetricValue } from "@/lib/metric-format";
 import { useTrendRange } from "@/components/SelectedRegionDetails/useTrendRange";
 import { ComparisonTrendChart } from "./ComparisonTrendChart";
 
@@ -61,7 +62,7 @@ function ComparisonRegionCard({ region, metric, year, change, loading }: {
     <div className="mt-4 border-t border-border pt-3">
       <p className="text-xs text-muted-foreground">{metric.label}</p>
       {loading ? <span aria-label={`Loading ${region.metadata.name} value`} className="mt-1 block h-7 w-24 animate-pulse rounded bg-muted motion-reduce:animate-none" /> :
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{value === null ? "No data" : numberFormat.format(value)}</p>}
+        <p className="mt-1 text-2xl font-semibold tabular-nums">{value === null ? "No data" : formatMetricValue(value, metric)}</p>}
       <p className="mt-0.5 text-xs text-muted-foreground">{metric.unit} · {year}</p>
     </div>
     <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3">
@@ -71,7 +72,7 @@ function ComparisonRegionCard({ region, metric, year, change, loading }: {
       </div>
       <div className="border-l border-border pl-3">
         <dt className="text-xs text-muted-foreground">Period change</dt>
-        <dd className="mt-1 text-sm font-semibold tabular-nums">{change ? `${signed(change.percent)}%` : "No data"}</dd>
+        <dd className="mt-1 text-sm font-semibold tabular-nums">{change ? formatMetricPeriodChange(change.value, metric) : "No data"}</dd>
         {change ? <p className="text-xs text-muted-foreground">since {change.sinceYear}</p> : null}
       </div>
     </dl>
@@ -89,7 +90,7 @@ export function RegionComparison({
     filterTrendRange(regions[0].trend, range),
     filterTrendRange(regions[1].trend, range),
   ] as const, [range, regions]);
-  const changes = useMemo(() => filteredTrends.map(changeOverPeriod), [filteredTrends]);
+  const changes = useMemo(() => filteredTrends.map((trend) => changeOverPeriod(trend, metric.periodChange)), [filteredTrends, metric.periodChange]);
   const difference = metricDifference(regions[0].value, regions[1].value);
   const snapshotLoading = isSnapshotLoading && !hasSnapshotData;
 
@@ -100,7 +101,7 @@ export function RegionComparison({
           <h2 className="text-base font-semibold">Comparing 2 regions</h2>
           <p className="text-xs text-muted-foreground">{metric.label} · {year}</p>
         </div>
-        <button type="button" onClick={onClear} className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Clear comparison</button>
+        <button type="button" onClick={onClear} className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Clear comparison</button>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <ComparisonRegionCard region={regions[0]} metric={metric} year={year} change={changes[0]} loading={snapshotLoading} />
@@ -109,12 +110,12 @@ export function RegionComparison({
       <div className="mt-3 flex flex-wrap items-end justify-between gap-2 rounded-md bg-muted/50 px-3 py-2.5">
         <div>
           <p className="text-xs text-muted-foreground">Difference</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums">{difference ? `${numberFormat.format(Math.abs(difference.value))} ${metric.unit}` : "No data"}</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums">{difference ? formatMetricDifference(difference.value, metric) : "No data"}</p>
         </div>
-        <div className="text-right">
+        {metric.periodChange === "relative" ? <div className="text-right">
           <p className="text-sm font-semibold tabular-nums">{difference?.percent === null || difference === null ? "—" : `${signed(difference.percent)}%`}</p>
-          <p className="text-[10px] text-muted-foreground">Region A relative to Region B</p>
-        </div>
+          <p className="text-[10px] text-muted-foreground">{regions[0].metadata.name} relative to {regions[1].metadata.name}</p>
+        </div> : null}
       </div>
       {isSnapshotError ? <p role="status" className="mt-2 text-xs text-muted-foreground">{hasSnapshotData ? "Could not refresh data. Showing the last available snapshot." : "Metric data is currently unavailable."}</p> : null}
     </div>

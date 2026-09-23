@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { gdpChoroplethScale } from "../../data/map-metric";
 import { choroplethExpression, NO_DATA_COLORS, type MapMetric } from "../../lib/choropleth";
 import { REGION_A_COLOR, REGION_B_COLOR } from "../../lib/region-colors";
-import { NordicMap } from "./NordicMap";
+import { EuropeMap } from "./EuropeMap";
 
 const mapMock = vi.hoisted(() => {
   const sources = new Map<string, { data: FeatureCollection; setData: ReturnType<typeof vi.fn> }>();
@@ -16,7 +16,8 @@ const mapMock = vi.hoisted(() => {
     addControl: vi.fn(), addLayer: vi.fn(), addSource: vi.fn(), fitBounds: vi.fn(),
     getCanvas: vi.fn(() => ({ style: {} })), getLayer: vi.fn(), getSource: vi.fn(),
     isStyleLoaded: vi.fn(() => true), on: vi.fn(), once: vi.fn(), remove: vi.fn(),
-    setPaintProperty: vi.fn(), setFilter: vi.fn(),
+    resize: vi.fn(), setPaintProperty: vi.fn(), setFilter: vi.fn(),
+    jumpTo: vi.fn(), easeTo: vi.fn(), flyTo: vi.fn(),
   };
   return { instance, popup, sources, layers };
 });
@@ -48,6 +49,14 @@ function emit(eventName: string, regionId = "FI1B", properties = {}) {
   };
   act(() => handler(event));
   return event;
+}
+
+function emitMapInteraction(eventName: string) {
+  const handler = mapMock.instance.on.mock.calls.find(([event, listener]) =>
+    event === eventName && typeof listener === "function",
+  )?.[1];
+  expect(handler).toBeTypeOf("function");
+  act(() => handler());
 }
 
 function sourceValues() {
@@ -117,7 +126,7 @@ afterEach(() => {
 });
 
 it("loads joined geometry and a shared legend while keeping UK context neutral", async () => {
-  render(<NordicMap metric={metric} />);
+  render(<EuropeMap metric={metric} />);
   await waitFor(() => expect(sourceValues()).toEqual([50400, 27200]));
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(mapMock.sources.get("uk-context")?.data).toBe(ukContextFeatureCollection);
@@ -142,12 +151,12 @@ it("loads joined geometry and a shared legend while keeping UK context neutral",
 
 it("allows clicks while loading, then updates source data without recreating or refitting the map", async () => {
   const onRegionClick = vi.fn();
-  const { rerender } = render(<NordicMap metric={loadingMetric} onRegionClick={onRegionClick} />);
+  const { rerender } = render(<EuropeMap metric={loadingMetric} onRegionClick={onRegionClick} />);
   await waitFor(() => expect(sourceValues()).toEqual([null, null]));
   expect(screen.getByRole("status")).toHaveTextContent("Loading data");
   emit("click", "PT20");
   expect(onRegionClick).toHaveBeenCalledWith("PT20");
-  rerender(<NordicMap metric={metric} onRegionClick={onRegionClick} />);
+  rerender(<EuropeMap metric={metric} onRegionClick={onRegionClick} />);
   await waitFor(() => expect(sourceValues()).toEqual([50400, 27200]));
   expect(mapMock.sources.get("nuts-regions")?.setData).toHaveBeenCalledTimes(1);
   expect(mapMock.instance.addSource).toHaveBeenCalledTimes(2);
@@ -156,20 +165,74 @@ it("allows clicks while loading, then updates source data without recreating or 
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
+it("keeps the viewport unchanged when selection props update", async () => {
+  const { rerender } = render(<EuropeMap metric={metric} />);
+  await waitFor(() => expect(mapMock.layers.has("nuts-selection-outline")).toBe(true));
+  expect(mapMock.instance.fitBounds).toHaveBeenCalledTimes(1);
+
+  rerender(<EuropeMap metric={metric} regionAId="FI1B" regionBId="PT20" />);
+
+  expect(mapMock.instance.fitBounds).toHaveBeenCalledTimes(1);
+  expect(mapMock.instance.jumpTo).not.toHaveBeenCalled();
+  expect(mapMock.instance.easeTo).not.toHaveBeenCalled();
+  expect(mapMock.instance.flyTo).not.toHaveBeenCalled();
+});
+
+it("does not apply the delayed initial fit after a user viewport interaction", async () => {
+  let resolveGeometry!: (value: unknown) => void;
+  const geometryResponse = new Promise((resolve) => { resolveGeometry = resolve; });
+  vi.stubGlobal("fetch", vi.fn((url: unknown) => String(url).includes("uk-country")
+    ? Promise.resolve({ ok: true, json: async () => ukContextFeatureCollection }) : geometryResponse));
+
+  render(<EuropeMap metric={metric} />);
+  emitMapInteraction("mousedown");
+  await act(async () => resolveGeometry({ ok: true, json: async () => europeFeatureCollection }));
+
+  await waitFor(() => expect(mapMock.sources.has("nuts-regions")).toBe(true));
+  expect(mapMock.instance.fitBounds).not.toHaveBeenCalled();
+});
+
+it("resizes for container layout changes without refitting the viewport", async () => {
+  let notifyResize: (() => void) | undefined;
+  const observe = vi.fn();
+  const disconnect = vi.fn();
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) {
+      notifyResize = callback;
+    }
+    observe = observe;
+    disconnect = disconnect;
+  });
+
+  const { unmount } = render(<EuropeMap metric={metric} />);
+  await waitFor(() => expect(mapMock.instance.fitBounds).toHaveBeenCalledTimes(1));
+  expect(observe).toHaveBeenCalledOnce();
+
+  act(() => notifyResize?.());
+
+  expect(mapMock.instance.resize).toHaveBeenCalled();
+  expect(mapMock.instance.fitBounds).toHaveBeenCalledTimes(1);
+  expect(mapMock.instance.jumpTo).not.toHaveBeenCalled();
+  expect(mapMock.instance.easeTo).not.toHaveBeenCalled();
+  expect(mapMock.instance.flyTo).not.toHaveBeenCalled();
+  unmount();
+  expect(disconnect).toHaveBeenCalledOnce();
+});
+
 it("uses the latest metric when data arrives before deferred geometry", async () => {
   let resolveGeometry!: (value: unknown) => void;
   const geometryResponse = new Promise((resolve) => { resolveGeometry = resolve; });
   vi.stubGlobal("fetch", vi.fn((url: unknown) => String(url).includes("uk-country")
     ? Promise.resolve({ ok: true, json: async () => ukContextFeatureCollection }) : geometryResponse));
-  const { rerender } = render(<NordicMap metric={loadingMetric} />);
-  rerender(<NordicMap metric={metric} />);
+  const { rerender } = render(<EuropeMap metric={loadingMetric} />);
+  rerender(<EuropeMap metric={metric} />);
   await act(async () => resolveGeometry({ ok: true, json: async () => europeFeatureCollection }));
   await waitFor(() => expect(sourceValues()).toEqual([50400, 27200]));
 });
 
 it("keeps selection on coloured outlines without replacing the GDP fill", async () => {
   const onRegionClick = vi.fn();
-  const { rerender } = render(<NordicMap metric={metric} regionAId="FI1B" regionBId="PT20" onRegionClick={onRegionClick} />);
+  const { rerender } = render(<EuropeMap metric={metric} regionAId="FI1B" regionBId="PT20" onRegionClick={onRegionClick} />);
   await waitFor(() => expect(mapMock.layers.has("nuts-selection-outline")).toBe(true));
   expect(mapMock.layers.get("nuts-selection-halo")).toMatchObject({ paint: { "line-color": "#ffffff", "line-width": 6 } });
   expect(mapMock.layers.get("nuts-selection-outline")).toMatchObject({ paint: {
@@ -179,7 +242,7 @@ it("keeps selection on coloured outlines without replacing the GDP fill", async 
   const context = emit("contextmenu", "PT20");
   expect(context.originalEvent.preventDefault).toHaveBeenCalledOnce();
   expect(onRegionClick).toHaveBeenCalledTimes(2);
-  rerender(<NordicMap metric={metric} regionAId="PT20" regionBId="FI1B" onRegionClick={onRegionClick} />);
+  rerender(<EuropeMap metric={metric} regionAId="PT20" regionBId="FI1B" onRegionClick={onRegionClick} />);
   expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith("nuts-selection-outline", "line-color",
     ["case", ["==", ["get", "NUTS_ID"], "PT20"], REGION_A_COLOR, REGION_B_COLOR]);
   expect(mapMock.instance.setFilter).toHaveBeenCalledWith("nuts-selection-outline", ["any",
@@ -190,11 +253,11 @@ it("keeps selection on coloured outlines without replacing the GDP fill", async 
 
 it("shows safe hover content and refreshes it when data arrives, without selecting", async () => {
   const onRegionClick = vi.fn();
-  const { rerender, unmount } = render(<NordicMap metric={loadingMetric} onRegionClick={onRegionClick} />);
+  const { rerender, unmount } = render(<EuropeMap metric={loadingMetric} onRegionClick={onRegionClick} />);
   await waitFor(() => expect(mapMock.sources.has("nuts-regions")).toBe(true));
   emit("mousemove", "FI1B", { NAME_LATN: "Helsinki-Uusimaa" });
   expect(mapMock.popup.setDOMContent.mock.lastCall?.[0].textContent).toContain("Loading data");
-  rerender(<NordicMap metric={metric} onRegionClick={onRegionClick} />);
+  rerender(<EuropeMap metric={metric} onRegionClick={onRegionClick} />);
   expect(mapMock.popup.setDOMContent.mock.lastCall?.[0].textContent).toBe("Helsinki-Uusimaa (FI1B)50,400PPS per inhabitant · 2023");
   emit("mousemove", "ES70", { NAME_LATN: "<img src=x onerror=alert(1)>" });
   const content = mapMock.popup.setDOMContent.mock.lastCall?.[0] as HTMLElement;
@@ -209,16 +272,16 @@ it("shows safe hover content and refreshes it when data arrives, without selecti
 });
 
 it("retains geometry on failure and preserves cached colours on refresh failure", async () => {
-  const { rerender } = render(<NordicMap metric={{ ...loadingMetric, isLoading: false, isError: true }} />);
+  const { rerender } = render(<EuropeMap metric={{ ...loadingMetric, isLoading: false, isError: true }} />);
   await waitFor(() => expect(sourceValues()).toEqual([null, null]));
   expect(screen.getByRole("status")).toHaveTextContent("Data unavailable");
-  rerender(<NordicMap metric={{ ...metric, isError: true }} />);
+  rerender(<EuropeMap metric={{ ...metric, isError: true }} />);
   expect(sourceValues()).toEqual([50400, 27200]);
   expect(screen.getByRole("status")).toHaveTextContent("Showing cached values");
 });
 
 it("keeps the choropleth scale while updating neutral colours and legend for dark mode", async () => {
-  render(<NordicMap metric={metric} />);
+  render(<EuropeMap metric={metric} />);
   await waitFor(() => expect(mapMock.layers.has("nuts-regions-fill")).toBe(true));
   act(() => document.documentElement.classList.add("dark"));
   await waitFor(() => expect(mapMock.instance.setPaintProperty).toHaveBeenCalledWith("water-background", "background-color", "#0b1f2a"));

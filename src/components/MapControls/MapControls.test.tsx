@@ -3,12 +3,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import { MapControls } from "./MapControls";
 import type { MetricDefinition } from "@/types/metric";
 
-const metrics: MetricDefinition[] = [
+const metrics: Pick<MetricDefinition, "id" | "label">[] = [
   {
     id: "gdp_per_capita",
     label: "GDP per capita",
-    unit: "PPS per inhabitant",
-    description: "GDP per inhabitant.",
   },
 ];
 

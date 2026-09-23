@@ -5,6 +5,7 @@ import type { Observation } from "../types/metric";
 const row = (year: number, value: number | null, regionId = "FI1B"): Observation => ({
   regionId, metricId: "gdp_per_capita", year, value, unit: "PPS per inhabitant",
 });
+const selectableIds = new Set(["FI1B", "SE11", "PT20"]);
 
 it("sorts a region's complete history by year and retains gaps", () => {
   expect(trendPoints([row(2023, 30), row(2015, 20), row(2020, null), row(2024, 40)], "FI1B", "gdp_per_capita")).toEqual([
@@ -40,15 +41,41 @@ it("calculates directional current-value differences safely", () => {
 });
 
 it("calculates positive and negative change while omitting unsafe periods", () => {
-  expect(changeOverPeriod([{ year: 2015, value: 20 }, { year: 2023, value: 25 }])).toEqual({ percent: 25, sinceYear: 2015 });
-  expect(changeOverPeriod([{ year: 2015, value: 20 }, { year: 2023, value: 10 }])).toEqual({ percent: -50, sinceYear: 2015 });
+  expect(changeOverPeriod([{ year: 2015, value: 20 }, { year: 2023, value: 25 }])).toEqual({ value: 25, sinceYear: 2015 });
+  expect(changeOverPeriod([{ year: 2015, value: 20 }, { year: 2023, value: 10 }])).toEqual({ value: -50, sinceYear: 2015 });
   expect(changeOverPeriod([{ year: 2015, value: null }, { year: 2023, value: 10 }])).toBeNull();
   expect(changeOverPeriod([{ year: 2015, value: 0 }, { year: 2023, value: 10 }])).toBeNull();
 });
 
+it("calculates rate changes in percentage points, including a zero baseline", () => {
+  expect(changeOverPeriod([{ year: 2015, value: 8.5 }, { year: 2023, value: 5.2 }], "percentagePoints"))
+    .toEqual({ value: -3.3, sinceYear: 2015 });
+  expect(changeOverPeriod([{ year: 2015, value: 0 }, { year: 2023, value: 2 }], "percentagePoints"))
+    .toEqual({ value: 2, sinceYear: 2015 });
+});
+
 it("ranks valid snapshot observations only, with configurable direction", () => {
   const snapshot = [row(2023, 20, "FI1B"), row(2023, 30, "SE11"), row(2023, null, "PT20"), row(2023, NaN, "DE11")];
-  expect(metricRank(snapshot, "gdp_per_capita", 2023, "FI1B", "higher")).toEqual({ position: 2, total: 2 });
-  expect(metricRank(snapshot, "gdp_per_capita", 2023, "FI1B", "lower")).toEqual({ position: 1, total: 2 });
-  expect(metricRank(snapshot, "gdp_per_capita", 2023, "PT20")).toBeNull();
+  expect(metricRank(snapshot, "gdp_per_capita", 2023, "FI1B", "higher", selectableIds)).toEqual({ position: 2, total: 2 });
+  expect(metricRank(snapshot, "gdp_per_capita", 2023, "FI1B", "lower", selectableIds)).toEqual({ position: 1, total: 2 });
+  expect(metricRank(snapshot, "gdp_per_capita", 2023, "PT20", "higher", selectableIds)).toBeNull();
+});
+
+it("ranks unemployment low-first and growth high-first while excluding missing data", () => {
+  const observations: Observation[] = [
+    { regionId: "FI1B", metricId: "unemployment_rate", year: 2023, value: 3, unit: "% of labour force" },
+    { regionId: "PT20", metricId: "unemployment_rate", year: 2023, value: 8, unit: "% of labour force" },
+    { regionId: "SE11", metricId: "unemployment_rate", year: 2023, value: null, unit: "% of labour force" },
+    { regionId: "FI1B", metricId: "gdp_growth", year: 2023, value: -2, unit: "% change on previous year" },
+    { regionId: "PT20", metricId: "gdp_growth", year: 2023, value: 1, unit: "% change on previous year" },
+  ];
+  expect(metricRank(observations, "unemployment_rate", 2023, "FI1B", "lower", selectableIds)).toEqual({ position: 1, total: 2 });
+  expect(metricRank(observations, "gdp_growth", 2023, "PT20", "higher", selectableIds)).toEqual({ position: 1, total: 2 });
+});
+
+it("excludes numeric dataset-only IDs from ranking and its denominator", () => {
+  const observations = [row(2023, 40, "FI1B"), row(2023, 20, "PT20"), row(2023, 999, "FIZZ"), row(2023, null, "SE11")];
+  const ids = new Set(["FI1B", "PT20", "SE11"]);
+  expect(metricRank(observations, "gdp_per_capita", 2023, "FI1B", "higher", ids)).toEqual({ position: 1, total: 2 });
+  expect(metricRank(observations, "gdp_per_capita", 2023, "FIZZ", "higher", ids)).toBeNull();
 });

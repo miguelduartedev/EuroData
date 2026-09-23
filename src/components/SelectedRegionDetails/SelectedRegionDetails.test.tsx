@@ -28,11 +28,11 @@ it("retains numeric zero and displays metadata, unit and year", () => {
   expect(screen.getByText("Select another region to compare")).toBeInTheDocument();
   expect(screen.getByText("+27.7%")).toBeInTheDocument();
   expect(screen.getByText("84 / 276")).toBeInTheDocument();
-  const chart = screen.getByRole("img", { name: "GDP per capita historical line chart" });
+  const chart = screen.getByRole("img", { name: "GDP per capita (PPS) historical line chart" });
   expect(chart).toHaveAttribute("viewBox", "0 0 640 220");
   expect(chart).toHaveClass("h-auto", "w-full");
   expect(chart.querySelector('[data-series-id="PT20"]')).toHaveAttribute("stroke", REGION_A_COLOR);
-  expect(within(screen.getByLabelText("GDP per capita trend")).getByText("Região Autónoma dos Açores")).toBeInTheDocument();
+  expect(within(screen.getByLabelText("GDP per capita (PPS) trend")).getByText("Região Autónoma dos Açores")).toBeInTheDocument();
   const latestPoint = screen.getByRole("button", { name: "Região Autónoma dos Açores, 2023: 28,100 PPS per inhabitant" });
   expect(screen.getByRole("button", { name: "Região Autónoma dos Açores, 2015: 22,000 PPS per inhabitant" })).toBeInTheDocument();
   expect(screen.getByText("2020")).toBeInTheDocument();
@@ -48,7 +48,7 @@ it("uses a country flag in the region avatar when country metadata is available"
   expect(screen.getByRole("img", { name: "Flag of Finland" })).toBeInTheDocument();
 });
 
-it("uses the same local flag treatment for a non-Nordic GISCO region", () => {
+it("uses the same local flag treatment for a European GISCO region", () => {
   render(<SelectedRegionDetails {...props} region={{ ...props.region, countryCode: "PT" }} />);
 
   expect(screen.getByRole("img", { name: "Flag of Portugal" })).toBeInTheDocument();

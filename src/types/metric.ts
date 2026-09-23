@@ -1,14 +1,19 @@
-export type MetricId =
-  | "gdp_per_capita"
-  | "unemployment_rate"
-  | "gdp_growth";
+import type { metricRegistry } from "../data/metrics";
+import type { ChoroplethScale } from "../lib/choropleth";
+
+export type MetricId = keyof typeof metricRegistry;
 
 export interface MetricDefinition {
   id: MetricId;
   label: string;
-  unit: string;
   description: string;
-  rankDirection?: "higher" | "lower";
+  category: "Economy" | "Labour";
+  eurostat: { datasetId: string; filters: Record<string, string> };
+  unit: string;
+  valueFormat: "number" | "euro" | "percent";
+  rankDirection: "higher" | "lower";
+  periodChange: "relative" | "percentagePoints";
+  choropleth: ChoroplethScale;
 }
 
 export interface Observation {

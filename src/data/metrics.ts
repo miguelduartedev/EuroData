@@ -28,17 +28,6 @@ export const EUROSTAT_ORANGE_BLUE_6 = [
 
 const EUROSTAT_BLUE_TO_ORANGE_6: readonly string[] = [...EUROSTAT_ORANGE_BLUE_6].reverse();
 
-/** Keeps growth's existing seven threshold bands while using the shared palette. */
-const EUROSTAT_GROWTH_DIVERGING = [
-  EUROSTAT_ORANGE_BLUE_6[0],
-  EUROSTAT_ORANGE_BLUE_6[1],
-  EUROSTAT_ORANGE_BLUE_6[2],
-  EUROSTAT_ORANGE_BLUE_6[2],
-  EUROSTAT_ORANGE_BLUE_6[3],
-  EUROSTAT_ORANGE_BLUE_6[4],
-  EUROSTAT_ORANGE_BLUE_6[5],
-] as const;
-
 /** The only supported-metric list. API requests, controls and map styling resolve from here. */
 export const metricRegistry = {
   gdp_per_capita: {
@@ -79,8 +68,8 @@ export const metricRegistry = {
     rankDirection: "higher",
     periodChange: "percentagePoints",
     choropleth: {
-      thresholds: [-5, -2, -0.5, 0.5, 2, 5],
-      colors: EUROSTAT_GROWTH_DIVERGING,
+      thresholds: [-2, 0, 1, 2, 5],
+      colors: EUROSTAT_ORANGE_BLUE_6,
     },
   },
   unemployment_rate: {
@@ -138,7 +127,7 @@ export const metricRegistry = {
     rankDirection: "higher",
     periodChange: "percentagePoints",
     choropleth: {
-      thresholds: [-1, -0.25, 0, 0.25, 1],
+      thresholds: [-0.5, 0, 0.5, 1, 2],
       colors: EUROSTAT_ORANGE_BLUE_6,
     },
   },

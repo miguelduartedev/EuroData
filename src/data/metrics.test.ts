@@ -33,7 +33,9 @@ it("exposes exactly the seven supported metrics from one registry", () => {
 it.each(metrics)("keeps $id map colours and legend synchronized at every threshold", (metric) => {
   const { choropleth: scale, valueFormat } = metric;
   const legend = choroplethLegend(scale, valueFormat);
-  expect(legend).toHaveLength(scale.thresholds.length + 1);
+  expect(scale.thresholds).toHaveLength(5);
+  expect(scale.colors).toHaveLength(6);
+  expect(legend).toHaveLength(6);
   expect(legend.map(({ color }) => color)).toEqual(scale.colors);
   const expression = createExpression(choroplethExpression(scale, NO_DATA_COLORS.light), "fill-color");
   expect(expression.result).toBe("success");
@@ -46,16 +48,56 @@ it.each(metrics)("keeps $id map colours and legend synchronized at every thresho
   expect(expression.value.evaluate({ zoom: 3 }, { type: 3, properties: { metricValue: null } })).toBe(NO_DATA_COLORS.light);
 });
 
-it("places negative growth, zero growth and positive growth in diverging bands", () => {
-  const scale = getMetricDefinition("gdp_growth").choropleth;
-  expect(scale.thresholds).toEqual([-5, -2, -0.5, 0.5, 2, 5]);
-  expect(choroplethBand(-5, scale)).toBe(1);
-  expect(choroplethBand(0, scale)).toBe(3);
-  expect(choroplethBand(5, scale)).toBe(6);
-  expect(scale.colors).toEqual([
-    "#D96D24", "#F0B956", "#C8D8EC", "#C8D8EC", "#809BC9", "#5878B5", "#3559A0",
-  ]);
-  expect(choroplethLegend(scale, "percent")[3]).toEqual({ color: "#C8D8EC", label: "-0.5%–<0.5%" });
+function expectSignedGrowthScale(
+  metricId: "gdp_growth" | "population_growth",
+  thresholds: readonly number[],
+  labels: readonly string[],
+) {
+  const scale = getMetricDefinition(metricId).choropleth;
+  const legend = choroplethLegend(scale, "percent");
+  const expression = createExpression(choroplethExpression(scale, NO_DATA_COLORS.light), "fill-color");
+
+  expect(scale.thresholds).toEqual(thresholds);
+  expect(scale.colors).toEqual(EUROSTAT_ORANGE_BLUE_6);
+  expect(scale.thresholds).toContain(0);
+  expect(legend).toHaveLength(6);
+  expect(legend.map(({ label }) => label)).toEqual(labels);
+  expect(expression.result).toBe("success");
+  if (expression.result !== "success") return;
+
+  for (const value of [thresholds[0] - 0.01, thresholds[0] + 0.01, -0.01]) {
+    const band = choroplethBand(value, scale)!;
+    expect(scale.colors[band]).toBeOneOf(EUROSTAT_ORANGE_BLUE_6.slice(0, 2));
+  }
+  for (const value of [0, 0.01, thresholds[2], thresholds[3], thresholds[4] + 0.01]) {
+    const band = choroplethBand(value, scale)!;
+    expect(scale.colors[band]).toBeOneOf(EUROSTAT_ORANGE_BLUE_6.slice(2));
+  }
+  for (const [index, threshold] of thresholds.entries()) {
+    expect(choroplethBand(threshold - 0.01, scale)).toBe(index);
+    expect(choroplethBand(threshold, scale)).toBe(index + 1);
+    expect(choroplethBand(threshold + 0.01, scale)).toBe(index + 1);
+    for (const value of [threshold - 0.01, threshold, threshold + 0.01]) {
+      const band = choroplethBand(value, scale)!;
+      expect(expression.value.evaluate({ zoom: 3 }, { type: 3, properties: { metricValue: value } })).toBe(scale.colors[band]);
+    }
+  }
+}
+
+it("keeps real GDP growth negative bands warm and zero-plus bands blue", () => {
+  expectSignedGrowthScale(
+    "gdp_growth",
+    [-2, 0, 1, 2, 5],
+    ["<-2%", "-2%–<0%", "0%–<1%", "1%–<2%", "2%–<5%", "≥5%"],
+  );
+});
+
+it("keeps population growth negative bands warm and zero-plus bands blue", () => {
+  expectSignedGrowthScale(
+    "population_growth",
+    [-0.5, 0, 0.5, 1, 2],
+    ["<-0.5%", "-0.5%–<0%", "0%–<0.5%", "0.5%–<1%", "1%–<2%", "≥2%"],
+  );
 });
 
 it("uses the Eurostat orange-to-blue palette in semantic metric order", () => {
@@ -72,8 +114,8 @@ it("uses the Eurostat orange-to-blue palette in semantic metric order", () => {
     thresholds: [500_000, 900_000, 1_500_000, 2_500_000, 4_000_000], colors: EUROSTAT_ORANGE_BLUE_6,
   });
   expect(getMetricDefinition("population_growth").choropleth).toEqual({
-    thresholds: [-1, -0.25, 0, 0.25, 1], colors: EUROSTAT_ORANGE_BLUE_6,
+    thresholds: [-0.5, 0, 0.5, 1, 2], colors: EUROSTAT_ORANGE_BLUE_6,
   });
   expect(choroplethBand(-6, getMetricDefinition("gdp_growth").choropleth)).toBe(0);
-  expect(choroplethBand(6, getMetricDefinition("gdp_growth").choropleth)).toBe(6);
+  expect(choroplethBand(6, getMetricDefinition("gdp_growth").choropleth)).toBe(5);
 });
